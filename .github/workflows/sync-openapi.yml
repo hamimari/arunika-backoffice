@@ -1,0 +1,54 @@
+name: Sync API spec
+
+# The vendored openapi.yaml is what the contract test checks client paths
+# against, so a stale copy quietly weakens that test. This refreshes it and
+# opens a pull request when it changes — deliberately a PR, not a direct
+# commit, so a backend change that breaks this client surfaces as a failing
+# check on a reviewable diff rather than as a silent update.
+
+on:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays, 06:00 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  sync:
+    name: Refresh vendored openapi.yaml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch the published spec
+        env:
+          SPEC_PATH: src/test/contract/openapi.yaml
+          GH_TOKEN: ${{ secrets.SPEC_FETCH_TOKEN || secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          run_id=$(gh run list --repo hamimari/arunika-backend \
+            --workflow "Publish API spec" --status success \
+            --limit 1 --json databaseId --jq '.[0].databaseId')
+          if [ -z "$run_id" ]; then
+            echo "No successful spec publish found; nothing to sync."
+            exit 0
+          fi
+          gh run download "$run_id" --repo hamimari/arunika-backend \
+            --name openapi --dir /tmp/spec
+          cp /tmp/spec/openapi.yaml "$SPEC_PATH"
+
+      - name: Open a pull request if the spec changed
+        uses: peter-evans/create-pull-request@v6
+        with:
+          commit-message: "chore: refresh vendored openapi.yaml"
+          title: "Refresh vendored openapi.yaml"
+          branch: chore/sync-openapi
+          delete-branch: true
+          body: |
+            The backend published a new `openapi.yaml`.
+
+            If the contract test fails on this pull request, a backend change
+            has broken a path this client calls — fix the client here, or the
+            route in the backend. Do not silently re-vendor past a failure.

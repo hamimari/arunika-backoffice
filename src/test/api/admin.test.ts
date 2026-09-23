@@ -124,6 +124,9 @@ describe('premiumPackagesApi', () => {
     const input = {
       name: 'Bulanan',
       subtitle: 'Akses 1 bulan',
+      description: null,
+      image_url: null,
+      play_product_id: null,
       price_idr: 39000,
       type: 'subscription' as const,
       badge_label: '',
@@ -143,6 +146,9 @@ describe('premiumPackagesApi', () => {
     const input = {
       name: 'Bulanan',
       subtitle: 'Akses 1 bulan',
+      description: null,
+      image_url: null,
+      play_product_id: null,
       price_idr: 39000,
       type: 'subscription' as const,
       badge_label: '',

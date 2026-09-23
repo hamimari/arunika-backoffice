@@ -25,3 +25,9 @@ dist-ssr
 
 # Vite build cache
 .vite/
+
+# Test output (coverage-baseline.json IS committed — it is the ratchet baseline)
+coverage/
+reports/
+playwright-report/
+test-results/

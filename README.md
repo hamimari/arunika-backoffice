@@ -16,8 +16,8 @@ Admin panel for the Arunika platform. Built with React 19, TypeScript, Vite, and
 
 ## Prerequisites
 
-- Node.js >= 18
-- npm >= 9
+- Node.js >= 22 (an `.nvmrc` is provided — run `nvm use`)
+- npm >= 10
 - A running instance of the [Arunika backend API](../arunika%20backend)
 
 ---
@@ -57,6 +57,57 @@ The app will be available at `http://localhost:5173` by default.
 | `npm run lint` | Run ESLint |
 | `npm test` | Run unit tests (Vitest) |
 | `npm run test:watch` | Run tests in watch mode |
+| `npm run test:ci` | Tests with coverage + JUnit output (what CI runs) |
+
+---
+
+## Testing
+
+```bash
+nvm use           # Node 22 — the suite will not start on older versions
+make test-fast    # inner loop: npm test
+make test-all     # everything CI runs on a pull request
+```
+
+> **Node 22 is required.** Vitest 4 / rolldown import `styleText` from
+> `node:util`, which does not exist before Node 20.19. On an older Node the
+> suite fails at module load with a `SyntaxError` before running a single
+> test — it does not fail gracefully.
+
+63 tests across 11 files cover the API modules and 7 of the 20 pages. CI runs
+them on every pull request (`.github/workflows/pr.yml`).
+
+### Coverage ratchet
+
+`make test-all` compares per-directory coverage against
+`coverage-baseline.json` and reports any directory that dropped. It is
+**report-only** today — it prints regressions without failing the build. After
+intentional changes:
+
+```bash
+make coverage-baseline
+```
+
+Current baseline is 38.3% overall; `src/api` 70.2%, `src/hooks` 54.5%,
+`src/pages` 32.0%, `src/components` 25.9%, `src/store` 0%.
+
+### Flaky tests
+
+A flaky test is one whose result changes between runs on an unchanged commit.
+The policy across all three Arunika repositories:
+
+- **Never add a retry to hide one.** Retries are permitted only in the E2E
+  tier, where a real browser has genuine nondeterminism. A non-deterministic
+  component test is a real defect in the test or the code.
+- **Quarantine within one working day.** Mark it `test.skip` with a link to a
+  tracking issue so it stops blocking merges while still being visible.
+- **Assign an owner and a two-week expiry.** At expiry it is fixed or
+  deleted. A permanently quarantined test is worse than no test — it burns CI
+  time and erodes trust in the suite.
+- **Common causes here:** asserting before TanStack Query resolves (use
+  `findBy*`, never `getBy*` after an async action), antd portal timing for
+  modals and dropdowns, and `axios-mock-adapter` handlers leaking between
+  tests (reset in `afterEach`).
 
 ---
 

@@ -4,7 +4,11 @@
     "target": "es2023",
     "lib": ["ES2023", "DOM"],
     "module": "esnext",
-    "types": ["vite/client"],
+    // "node" is needed by src/test/contract, which reads the vendored
+    // openapi.yaml from disk. Test files are inside this project on purpose:
+    // type-checking them is what caught a PremiumPackageInput literal that
+    // had drifted from the schema while its Vitest run still passed.
+    "types": ["vite/client", "node"],
     "skipLibCheck": true,
 
     /* Bundler mode */

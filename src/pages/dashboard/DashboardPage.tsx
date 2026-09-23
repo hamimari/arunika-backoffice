@@ -52,10 +52,14 @@ export default function DashboardPage() {
   const todayDAU = dau?.[dau.length - 1]?.count ?? 0;
   const todayNewUsers = newUsers?.[newUsers.length - 1]?.count ?? 0;
 
-  const successPayments = payments?.find((p: { status: string }) => p.status === 'premium')?.count ?? 0;
-  const totalPayments = payments?.reduce((sum: number, p: { count: number }) => sum + p.count, 0) ?? 0;
-  const successRate = totalPayments > 0 ? Math.round((successPayments / totalPayments) * 100) : 0;
-
+  // /admin/analytics/payments groups the `orders` table by order status and
+  // sums amount_idr per group. It previously grouped user_subscriptions
+  // instead, which fed "Successful Payments" and "Payment Success Rate"
+  // cards here that were both mislabelled AND arithmetically identical to
+  // the "Premium Users" / "Premium Conversion Rate" cards below. Those cards
+  // were removed; now that the endpoint reports real order data they could be
+  // reinstated as genuine payment KPIs, but that is a deliberate choice
+  // rather than something to restore by accident.
   const totalUsers: number = subStats?.total ?? 0;
   const premiumUsers: number = subStats?.premium ?? 0;
   const freeUsers: number = subStats?.free ?? 0;
@@ -96,13 +100,26 @@ export default function DashboardPage() {
     ],
   };
 
+  // Colour by meaning rather than by position: the API returns groups
+  // ordered by count, so the Nth bar is not a fixed status. Any status not
+  // listed (a new one added to the orders CHECK constraint) falls back to
+  // grey instead of silently borrowing another status's colour.
+  const ORDER_STATUS_COLORS: Record<string, string> = {
+    PAID: '#52c41a',
+    PENDING: '#faad14',
+    FAILED: '#ff4d4f',
+    EXPIRED: '#bfbfbf',
+    REFUNDED: '#722ed1',
+  };
+
   const paymentChartData = {
     labels: payments?.map((p: { status: string }) => p.status) ?? [],
     datasets: [
       {
-        label: 'Transactions',
+        label: 'Orders',
         data: payments?.map((p: { count: number }) => p.count) ?? [],
-        backgroundColor: ['#52c41a', '#faad14', '#ff4d4f'],
+        backgroundColor:
+          payments?.map((p: { status: string }) => ORDER_STATUS_COLORS[p.status] ?? '#8c8c8c') ?? [],
       },
     ],
   };
@@ -122,26 +139,17 @@ export default function DashboardPage() {
     <div>
       <h2 style={{ marginBottom: 24 }}>Dashboard</h2>
 
-      {/* KPI Row 1 — Activity */}
+      {/* KPI Row 1 — Activity. Two cards span the row (lg={12} each) since
+          the two payment cards that used to sit here were removed. */}
       <Row gutter={[16, 16]} style={{ marginBottom: 16 }}>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={12}>
           <Card>
             <Statistic title="DAU (Today)" value={todayDAU} loading={dauLoading} />
           </Card>
         </Col>
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={12}>
           <Card>
             <Statistic title="New Users (Today)" value={todayNewUsers} loading={nuLoading} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Successful Payments" value={successPayments} loading={payLoading} />
-          </Card>
-        </Col>
-        <Col xs={24} sm={12} lg={6}>
-          <Card>
-            <Statistic title="Payment Success Rate" value={successRate} suffix="%" loading={payLoading} />
           </Card>
         </Col>
       </Row>
@@ -212,7 +220,7 @@ export default function DashboardPage() {
           </Card>
         </Col>
         <Col xs={24} lg={8}>
-          <Card title="Payment Metrics (by subscription status)">
+          <Card title="Orders (by status)">
             {payLoading ? <Spin /> : <Bar data={paymentChartData} />}
           </Card>
         </Col>
