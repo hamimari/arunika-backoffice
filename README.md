@@ -91,6 +91,8 @@ make coverage-baseline
 Current baseline is 38.3% overall; `src/api` 70.2%, `src/hooks` 54.5%,
 `src/pages` 32.0%, `src/components` 25.9%, `src/store` 0%.
 
+Full guide (suites, how to run each, CI): [`docs/automation-testing.md`](docs/automation-testing.md).
+
 ### Flaky tests
 
 A flaky test is one whose result changes between runs on an unchanged commit.
