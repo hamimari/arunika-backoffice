@@ -156,6 +156,8 @@ export interface Product extends StrikeOverride, StrikeDisplay {
   display_name: string;
   content_id: string;
   price_idr: number;
+  /** Google Play SKU selling this product; null = not purchasable via Play. */
+  play_product_id?: string | null;
   is_active: boolean;
   created_at: string;
   updated_at: string;
@@ -164,6 +166,7 @@ export interface Product extends StrikeOverride, StrikeDisplay {
 export interface CreateProductInput {
   feature_code: 'AR_CARD' | 'DONGENG';
   price_idr: number;
+  play_product_id?: string;
   ar_card_id?: string;
   dongeng_id?: string;
 }
@@ -172,8 +175,23 @@ export const productsApi = {
   list: (): Promise<{ data: Product[] }> => api.get('/admin/products').then((r) => r.data),
   create: (data: CreateProductInput): Promise<{ data: Product }> =>
     api.post('/admin/products', data).then((r) => r.data),
-  update: (id: string, priceIdr: number, strike: StrikeOverride = {}): Promise<{ data: Product }> =>
-    api.put(`/admin/products/${id}`, { price_idr: priceIdr, ...strike }).then((r) => r.data),
+  /**
+   * `playProductId`: omit to leave the Google Play mapping alone; null (or
+   * blank) clears it; a string sets it.
+   */
+  update: (
+    id: string,
+    priceIdr: number,
+    strike: StrikeOverride = {},
+    playProductId?: string | null,
+  ): Promise<{ data: Product }> =>
+    api
+      .put(`/admin/products/${id}`, {
+        price_idr: priceIdr,
+        ...strike,
+        ...(playProductId !== undefined ? { play_product_id: playProductId } : {}),
+      })
+      .then((r) => r.data),
   remove: (id: string): Promise<void> =>
     api.delete(`/admin/products/${id}`).then(() => undefined),
   toggleActive: (id: string, isActive: boolean): Promise<void> =>
@@ -205,13 +223,48 @@ export interface Order {
   product_name: string | null;
   package_id: string | null;
   package_name: string | null;
+  package_type?: 'content' | 'subscription' | null;
   amount_idr: number;
   status: 'PENDING' | 'PAID' | 'FAILED' | 'EXPIRED' | 'REFUNDED';
   provider: 'midtrans' | 'google_play';
   has_purchase_token: boolean;
+  refund_count?: number;
   created_at: string;
   updated_at: string;
 }
+
+export type RefundType = 'FULL' | 'PRORATED';
+
+/** One refund of a Google Play order — issued here or reported by Google. */
+export interface OrderRefund {
+  id: string;
+  order_id: string;
+  source: 'ADMIN' | 'GOOGLE_VOIDED' | 'GOOGLE_RTDN';
+  refund_type: RefundType;
+  revoked: boolean;
+  reason: string | null;
+  admin_id: string | null;
+  admin_email?: string | null;
+  play_order_id: string | null;
+  order_amount_idr: number;
+  refunded_total: number | null;
+  refunded_tax: number | null;
+  currency: string | null;
+  play_order_state: string | null;
+  play_refund_reason: string | null;
+  voided_source: number | null;
+  voided_reason: number | null;
+  status: 'REQUESTED' | 'SUCCEEDED' | 'FAILED';
+  error: string | null;
+  requested_at: string;
+  completed_at: string | null;
+}
+
+export const orderRefundsApi = {
+  /** Re-reads a refund's amounts and state from Google. */
+  sync: (id: string): Promise<{ data: OrderRefund }> =>
+    api.post(`/admin/order-refunds/${id}/sync`).then((r) => r.data),
+};
 
 export const ordersApi = {
   list: (params: { status?: string; search?: string; page?: number; per_page?: number }): Promise<{
@@ -231,4 +284,9 @@ export const ordersApi = {
   // days. Also runs automatically every 6h on the backend.
   reconcilePlay: (): Promise<{ data: { reconciled: number } }> =>
     api.post('/admin/orders/reconcile-play').then((r) => r.data),
+  /** Refunds a PAID Google Play order through Google and removes its access. */
+  refund: (id: string, body: { reason: string; refund_type: RefundType }): Promise<{ data: OrderRefund }> =>
+    api.post(`/admin/orders/${id}/refund`, body).then((r) => r.data),
+  refunds: (id: string): Promise<{ data: OrderRefund[] }> =>
+    api.get(`/admin/orders/${id}/refunds`).then((r) => r.data),
 };

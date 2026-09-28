@@ -7,6 +7,7 @@ import {
   Popconfirm,
   Modal,
   Form,
+  Input,
   InputNumber,
   Select,
   Space,
@@ -39,9 +40,14 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [contentModalProduct, setContentModalProduct] = useState<Product | null>(null);
-  const [editForm] = Form.useForm<{ price_idr: number } & StrikeFormValues>();
+  const [editForm] = Form.useForm<{ price_idr: number; play_product_id?: string } & StrikeFormValues>();
   const watchedEditPrice = Form.useWatch('price_idr', editForm);
-  const [form] = Form.useForm<{ feature_code: 'AR_CARD' | 'DONGENG'; content_id: string; price_idr: number }>();
+  const [form] = Form.useForm<{
+    feature_code: 'AR_CARD' | 'DONGENG';
+    content_id: string;
+    price_idr: number;
+    play_product_id?: string;
+  }>();
   const watchedFeatureCode = Form.useWatch('feature_code', form);
 
   const { data, isLoading } = useQuery({
@@ -66,7 +72,10 @@ export default function ProductsPage() {
   const createMutation = useMutation({
     mutationFn: (d: CreateProductInput) => productsApi.create(d),
     onSuccess: () => { invalidate(); closeModal(); },
-    onError: () => message.error('Failed to create product'),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      message.error(msg || 'Failed to create product');
+    },
   });
 
   const deleteMutation = useMutation({
@@ -85,8 +94,17 @@ export default function ProductsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, priceIdr, strike }: { id: string; priceIdr: number; strike: StrikeOverride }) =>
-      productsApi.update(id, priceIdr, strike),
+    mutationFn: ({
+      id,
+      priceIdr,
+      strike,
+      playProductId,
+    }: {
+      id: string;
+      priceIdr: number;
+      strike: StrikeOverride;
+      playProductId: string | null;
+    }) => productsApi.update(id, priceIdr, strike, playProductId),
     onSuccess: () => { invalidate(); closeEditModal(); },
     onError: (err: unknown) => {
       const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
@@ -106,7 +124,11 @@ export default function ProductsPage() {
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
-    editForm.setFieldsValue({ price_idr: product.price_idr, ...overrideToForm(product) });
+    editForm.setFieldsValue({
+      price_idr: product.price_idr,
+      play_product_id: product.play_product_id ?? undefined,
+      ...overrideToForm(product),
+    });
   };
 
   const closeEditModal = () => {
@@ -121,6 +143,9 @@ export default function ProductsPage() {
         id: editingProduct.id,
         priceIdr: values.price_idr,
         strike: formToOverride(values),
+        // The form always shows the current mapping, so send it as it is:
+        // a blank field clears it.
+        playProductId: values.play_product_id?.trim() || null,
       });
     }
   };
@@ -130,6 +155,7 @@ export default function ProductsPage() {
     const input: CreateProductInput = {
       feature_code: values.feature_code,
       price_idr: values.price_idr,
+      ...(values.play_product_id?.trim() ? { play_product_id: values.play_product_id.trim() } : {}),
       ...(values.feature_code === 'AR_CARD'
         ? { ar_card_id: values.content_id }
         : { dongeng_id: values.content_id }),
@@ -170,6 +196,23 @@ export default function ProductsPage() {
       dataIndex: 'price_idr',
       key: 'price_idr',
       render: (v: number) => `Rp ${v.toLocaleString('id-ID')}`,
+    },
+    {
+      title: 'Play Billing',
+      dataIndex: 'play_product_id',
+      key: 'play_product_id',
+      render: (v: string | null | undefined) =>
+        v ? (
+          <div>
+            <Tag color="green">Mapped</Tag>
+            <br />
+            <Text type="secondary" style={{ fontSize: 12 }}>
+              {v}
+            </Text>
+          </div>
+        ) : (
+          <Tag color="default">Unmapped</Tag>
+        ),
     },
     {
       title: 'Harga coret',
@@ -293,6 +336,13 @@ export default function ProductsPage() {
               parser={(v) => parseInt((v ?? '').replace(/,/g, ''), 10) as 1}
             />
           </Form.Item>
+          <Form.Item
+            name="play_product_id"
+            label="Play Product ID"
+            extra="Google Play Console in-app product SKU. Without it this item can't be bought through Google Play Billing."
+          >
+            <Input placeholder="e.g. card_frog" />
+          </Form.Item>
         </Form>
       </Modal>
 
@@ -321,6 +371,13 @@ export default function ProductsPage() {
               formatter={(v) => `${v}`.replace(/\B(?=(\d{3})+(?!\d))/g, ',')}
               parser={(v) => parseInt((v ?? '').replace(/,/g, ''), 10) as 1}
             />
+          </Form.Item>
+          <Form.Item
+            name="play_product_id"
+            label="Play Product ID"
+            extra="Google Play Console in-app product SKU. Clear it to stop selling this item through Google Play."
+          >
+            <Input placeholder="e.g. card_frog" />
           </Form.Item>
           <StrikePriceFields price={watchedEditPrice} allowInherit />
         </Form>

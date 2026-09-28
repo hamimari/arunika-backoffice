@@ -106,6 +106,7 @@ describe('ProductsPage', () => {
       strike_value: 5000,
       strike_starts_at: null,
       strike_ends_at: inTwoWeeks,
+      play_product_id: null,
     });
   });
 
@@ -124,5 +125,70 @@ describe('ProductsPage', () => {
 
     await waitFor(() => expect(mock.history.put.length).toBe(1));
     expect(JSON.parse(mock.history.put[0].data)).toMatchObject({ price_idr: 15000, strike_mode: null });
+  });
+
+  it('shows whether each product is mapped to a Google Play SKU', async () => {
+    mock.onGet('/admin/products').reply(200, {
+      data: [
+        { ...promoProduct, id: 'p-mapped', play_product_id: 'card_frog' },
+        { ...promoProduct, id: 'p-unmapped', play_product_id: null },
+      ],
+    });
+
+    renderPage();
+
+    expect(await screen.findByText('Mapped')).toBeInTheDocument();
+    expect(screen.getByText('card_frog')).toBeInTheDocument();
+    expect(screen.getByText('Unmapped')).toBeInTheDocument();
+  });
+
+  it('edits the Play Product ID: prefilled, changed, and sent', async () => {
+    mock.onGet('/admin/products').reply(200, { data: [{ ...promoProduct, play_product_id: 'card_frog' }] });
+    mock.onPut('/admin/products/prod-1').reply(200, { data: promoProduct });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /edit/i }));
+    const modal = await screen.findByRole('dialog');
+    const field = within(modal).getByLabelText('Play Product ID');
+    expect(field).toHaveValue('card_frog');
+
+    await user.clear(field);
+    await user.type(field, '  card_frog_v2 ');
+    await user.click(within(modal).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mock.history.put.length).toBe(1));
+    expect(JSON.parse(mock.history.put[0].data)).toMatchObject({ play_product_id: 'card_frog_v2' });
+  });
+
+  it('clears the mapping when the field is emptied', async () => {
+    mock.onGet('/admin/products').reply(200, { data: [{ ...promoProduct, play_product_id: 'card_frog' }] });
+    mock.onPut('/admin/products/prod-1').reply(200, { data: promoProduct });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /edit/i }));
+    const modal = await screen.findByRole('dialog');
+    await user.clear(within(modal).getByLabelText('Play Product ID'));
+    await user.click(within(modal).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mock.history.put.length).toBe(1));
+    expect(JSON.parse(mock.history.put[0].data).play_product_id).toBeNull();
+  });
+
+  it("shows the server's message when the SKU is already used", async () => {
+    mock.onGet('/admin/products').reply(200, { data: [promoProduct] });
+    mock.onPut('/admin/products/prod-1').reply(400, {
+      error: 'play product id "card_frog" is already used by another product or package',
+    });
+    const user = userEvent.setup();
+
+    renderPage();
+    await user.click(await screen.findByRole('button', { name: /edit/i }));
+    const modal = await screen.findByRole('dialog');
+    await user.type(within(modal).getByLabelText('Play Product ID'), 'card_frog');
+    await user.click(within(modal).getByRole('button', { name: 'Save' }));
+
+    expect(await screen.findByText(/already used by another product/)).toBeInTheDocument();
   });
 });

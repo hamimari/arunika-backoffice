@@ -18,7 +18,7 @@ history: `arunika_app/openspec/changes/add-automation-testing-strategy/`.
 ## Everyday loop
 
 ```bash
-make test-fast          # npm test  (168 tests, 19 files)
+make test-fast          # npm test  (181 tests, 20 files)
 make test-all           # lint + typecheck + coverage + ratchet (what a PR runs)
 npm run test:watch
 ```
@@ -39,8 +39,13 @@ doesn't pass through the interceptor that triggers it; mock accordingly.
 Three publishing flows in `e2e/admin-publishing.spec.ts`: category → AR card →
 visibility → published; dongeng → publish; package → add items → publish. Two
 strike-price flows in `e2e/strike-prices.spec.ts`: a global "Harga Coret" rule is
-saved and shown as active; a package override reaches `/premium/packs`. Final
-state is verified through the app's public API, not just the UI.
+saved and shown as active; a package override reaches `/premium/packs`. One refund
+flow in `e2e/order-refunds.spec.ts`: a fresh user buys a card on Google Play (the
+held stack's fake Google accepts any `e2e-hold-` purchase token), an admin refunds
+it from the Orders page, the card locks again and the refund appears in the
+history. One mapping flow in `e2e/product-play-mapping.spec.ts`: an admin sets a
+product's Play Product ID on the Products page and the public AR card list carries
+the SKU. Final state is verified through the app's public API, not just the UI.
 
 **1. Start the stack** (from `arunika-backend`) and leave it running:
 

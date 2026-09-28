@@ -1,9 +1,26 @@
-import { Table, Tag, Select, Input, Space, Typography, Button, message, Modal, Descriptions, Spin } from 'antd';
-import { SyncOutlined } from '@ant-design/icons';
+import {
+  Table,
+  Tag,
+  Select,
+  Input,
+  Space,
+  Typography,
+  Button,
+  message,
+  Modal,
+  Descriptions,
+  Spin,
+  Radio,
+  Checkbox,
+  Drawer,
+  Alert,
+  Empty,
+} from 'antd';
+import { SyncOutlined, RollbackOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
-import { ordersApi, usersApi, productsApi, premiumPackagesApi } from '../../api/admin';
-import type { Order } from '../../api/admin';
+import { ordersApi, usersApi, productsApi, premiumPackagesApi, orderRefundsApi } from '../../api/admin';
+import type { Order, OrderRefund, RefundType } from '../../api/admin';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Text, Link } = Typography;
@@ -35,6 +52,8 @@ export default function OrdersPage() {
   const [userModalId, setUserModalId] = useState<string | null>(null);
   const [itemModalOrder, setItemModalOrder] = useState<Order | null>(null);
   const [recoverPlayOrder, setRecoverPlayOrder] = useState<Order | null>(null);
+  const [refundOrder, setRefundOrder] = useState<Order | null>(null);
+  const [refundsOrder, setRefundsOrder] = useState<Order | null>(null);
   const perPage = 20;
   const queryClient = useQueryClient();
 
@@ -133,7 +152,22 @@ export default function OrdersPage() {
       title: 'Actions',
       key: 'actions',
       render: (_: unknown, record: Order) => {
-        if (record.status !== 'PENDING') return null;
+        if (record.status !== 'PENDING') {
+          return (
+            <Space>
+              {isRefundable(record) && (
+                <Button size="small" danger icon={<RollbackOutlined />} onClick={() => setRefundOrder(record)}>
+                  Refund
+                </Button>
+              )}
+              {(record.refund_count ?? 0) > 0 && (
+                <Button size="small" type="link" onClick={() => setRefundsOrder(record)}>
+                  Refunds ({record.refund_count})
+                </Button>
+              )}
+            </Space>
+          );
+        }
 
         // One action per record, driven by which payment rail the order
         // was created against — a Play order with a token already on file
@@ -216,6 +250,8 @@ export default function OrdersPage() {
       {recoverPlayOrder && (
         <RecoverPlayModal order={recoverPlayOrder} onClose={() => setRecoverPlayOrder(null)} />
       )}
+      {refundOrder && <RefundModal order={refundOrder} onClose={() => setRefundOrder(null)} />}
+      {refundsOrder && <RefundsDrawer order={refundsOrder} onClose={() => setRefundsOrder(null)} />}
     </>
   );
 }
@@ -359,5 +395,223 @@ function ItemDetailModal({ order, onClose }: { order: Order; onClose: () => void
         <Text type="secondary">Product details unavailable (it may have been deleted).</Text>
       )}
     </Modal>
+  );
+}
+
+// ── Refunds ─────────────────────────────────────────────────────────────────
+
+const MIN_REFUND_REASON = 10;
+
+/** Only a PAID Google Play order with a purchase token can be refunded. */
+function isRefundable(order: Order): boolean {
+  return order.provider === 'google_play' && order.status === 'PAID' && order.has_purchase_token;
+}
+
+const formatIdr = (v: number) => `Rp ${v.toLocaleString('id-ID')}`;
+
+// Refunds a Google Play order through Google (orders.refund, or
+// subscriptionsv2.revoke for subscriptions) and removes the access it granted.
+function RefundModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  const isSubscription = order.package_type === 'subscription';
+  const [refundType, setRefundType] = useState<RefundType>('FULL');
+  const [reason, setReason] = useState('');
+  const [confirmed, setConfirmed] = useState(false);
+  const queryClient = useQueryClient();
+
+  const mutation = useMutation({
+    mutationFn: () => ordersApi.refund(order.id, { reason: reason.trim(), refund_type: refundType }),
+    onSuccess: () => {
+      message.success('Refund berhasil — akses pengguna sudah dicabut');
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      onClose();
+    },
+    onError: (err: unknown) => message.error(extractErrorMessage(err, 'Refund failed')),
+  });
+
+  const reasonValid = reason.trim().length >= MIN_REFUND_REASON;
+  const item = order.package_name ?? order.product_name ?? order.package_id ?? order.product_id ?? '—';
+
+  return (
+    <Modal
+      title="Refund Google Play Order"
+      open
+      onCancel={onClose}
+      onOk={() => mutation.mutate()}
+      okText="Refund"
+      okButtonProps={{ danger: true, disabled: !reasonValid || !confirmed, loading: mutation.isPending }}
+    >
+      <Descriptions bordered column={1} size="small" style={{ marginBottom: 16 }}>
+        <Descriptions.Item label="User">{order.user_name || order.user_email || order.user_id}</Descriptions.Item>
+        <Descriptions.Item label="Item">
+          {item} {isSubscription && <Tag color="purple">Subscription</Tag>}
+        </Descriptions.Item>
+        <Descriptions.Item label="Amount">{formatIdr(order.amount_idr)}</Descriptions.Item>
+        <Descriptions.Item label="Order">
+          <Text copyable={{ text: order.id }}>{order.id.slice(0, 8)}…</Text>
+        </Descriptions.Item>
+      </Descriptions>
+
+      {isSubscription && (
+        <div style={{ marginBottom: 16 }}>
+          <Text strong>Refund type</Text>
+          <Radio.Group
+            style={{ display: 'block', marginTop: 8 }}
+            value={refundType}
+            onChange={(e) => setRefundType(e.target.value)}
+            options={[
+              { value: 'FULL', label: 'Full — the latest charge in full' },
+              { value: 'PRORATED', label: 'Prorated — only the unused time' },
+            ]}
+          />
+        </div>
+      )}
+
+      <Text strong>Reason</Text>
+      <Input.TextArea
+        aria-label="Refund reason"
+        style={{ marginTop: 8 }}
+        rows={3}
+        maxLength={500}
+        placeholder="Why is this order refunded? (shown in the refund history)"
+        value={reason}
+        onChange={(e) => setReason(e.target.value)}
+        status={reason && !reasonValid ? 'error' : undefined}
+      />
+      {reason && !reasonValid && (
+        <Text type="danger" style={{ fontSize: 12 }}>
+          At least {MIN_REFUND_REASON} characters
+        </Text>
+      )}
+
+      <Checkbox style={{ marginTop: 16 }} checked={confirmed} onChange={(e) => setConfirmed(e.target.checked)}>
+        Uang dikembalikan ke pengguna dan aksesnya dicabut sekarang
+      </Checkbox>
+    </Modal>
+  );
+}
+
+const REFUND_SOURCE: Record<OrderRefund['source'], string> = {
+  ADMIN: 'Backoffice',
+  GOOGLE_VOIDED: 'Google (voided purchase)',
+  GOOGLE_RTDN: 'Google (subscription revoked)',
+};
+
+const REFUND_STATUS_COLOR: Record<OrderRefund['status'], string> = {
+  REQUESTED: 'orange',
+  SUCCEEDED: 'green',
+  FAILED: 'red',
+};
+
+// Google's voided-purchase codes, see purchases.voidedpurchases.
+const VOIDED_SOURCE = ['User', 'Developer', 'Google'];
+const VOIDED_REASON = [
+  'Other',
+  'Remorse',
+  'Not received',
+  'Defective',
+  'Accidental purchase',
+  'Fraud',
+  'Friendly fraud',
+  'Chargeback',
+];
+
+function RefundsDrawer({ order, onClose }: { order: Order; onClose: () => void }) {
+  const queryClient = useQueryClient();
+  const refundsKey = ['order-refunds', order.id];
+  const { data, isLoading } = useQuery({
+    queryKey: refundsKey,
+    queryFn: () => ordersApi.refunds(order.id).then((r) => r.data),
+  });
+
+  const syncMutation = useMutation({
+    mutationFn: (id: string) => orderRefundsApi.sync(id),
+    onSuccess: () => {
+      message.success('Refund details synced from Google');
+      queryClient.invalidateQueries({ queryKey: refundsKey });
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (err: unknown) => message.error(extractErrorMessage(err, 'Failed to sync refund')),
+  });
+
+  const money = (v: number | null, currency: string | null) =>
+    v == null ? '—' : currency === 'IDR' || !currency ? formatIdr(v) : `${currency} ${v}`;
+
+  return (
+    <Drawer title={`Refunds — order ${order.id.slice(0, 8)}…`} open onClose={onClose} width={560}>
+      {isLoading ? (
+        <Spin />
+      ) : !data?.length ? (
+        <Empty description="No refunds" />
+      ) : (
+        <Space direction="vertical" style={{ width: '100%' }} size="large">
+          {data.map((r) => (
+            <div key={r.id} data-testid="refund-record">
+              {r.status === 'REQUESTED' && (
+                <Alert
+                  type="warning"
+                  showIcon
+                  style={{ marginBottom: 8 }}
+                  message="Menunggu konfirmasi — Google accepted the refund but it isn't finalized here yet. Use Sync."
+                />
+              )}
+              <Descriptions bordered column={1} size="small">
+                <Descriptions.Item label="Status">
+                  <Tag color={REFUND_STATUS_COLOR[r.status]}>{r.status}</Tag>
+                </Descriptions.Item>
+                <Descriptions.Item label="Source">{REFUND_SOURCE[r.source]}</Descriptions.Item>
+                {r.admin_email && <Descriptions.Item label="Admin">{r.admin_email}</Descriptions.Item>}
+                {r.reason && <Descriptions.Item label="Reason">{r.reason}</Descriptions.Item>}
+                <Descriptions.Item label="Type">
+                  {r.refund_type === 'PRORATED' ? 'Prorated' : 'Full'}
+                  {r.revoked ? ' · access revoked' : ''}
+                </Descriptions.Item>
+                <Descriptions.Item label="Order amount">{formatIdr(r.order_amount_idr)}</Descriptions.Item>
+                <Descriptions.Item label="Refunded (Google)">
+                  {money(r.refunded_total, r.currency)}
+                  {r.refunded_tax != null && ` (tax ${money(r.refunded_tax, r.currency)})`}
+                </Descriptions.Item>
+                {r.play_order_state && (
+                  <Descriptions.Item label="Google state">
+                    {r.play_order_state}
+                    {r.play_refund_reason && ` · ${r.play_refund_reason}`}
+                  </Descriptions.Item>
+                )}
+                {r.voided_reason != null && (
+                  <Descriptions.Item label="Voided">
+                    {VOIDED_REASON[r.voided_reason] ?? r.voided_reason} by{' '}
+                    {VOIDED_SOURCE[r.voided_source ?? -1] ?? r.voided_source}
+                  </Descriptions.Item>
+                )}
+                {r.play_order_id && (
+                  <Descriptions.Item label="Play order">
+                    <Text copyable>{r.play_order_id}</Text>
+                  </Descriptions.Item>
+                )}
+                <Descriptions.Item label="Requested">{new Date(r.requested_at).toLocaleString('id-ID')}</Descriptions.Item>
+                {r.completed_at && (
+                  <Descriptions.Item label="Completed">{new Date(r.completed_at).toLocaleString('id-ID')}</Descriptions.Item>
+                )}
+                {r.error && (
+                  <Descriptions.Item label="Error">
+                    <Text type={r.status === 'FAILED' ? 'danger' : 'secondary'}>{r.error}</Text>
+                  </Descriptions.Item>
+                )}
+              </Descriptions>
+              {r.play_order_id && r.status !== 'FAILED' && (
+                <Button
+                  size="small"
+                  style={{ marginTop: 8 }}
+                  icon={<SyncOutlined />}
+                  loading={syncMutation.isPending && syncMutation.variables === r.id}
+                  onClick={() => syncMutation.mutate(r.id)}
+                >
+                  Sync refund details
+                </Button>
+              )}
+            </div>
+          ))}
+        </Space>
+      )}
+    </Drawer>
   );
 }
