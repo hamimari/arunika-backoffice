@@ -378,6 +378,7 @@ function ManageItemsModal({ pkg, onClose }: { pkg: PremiumPackage; onClose: () =
   const productById = new Map((products ?? []).map((p: Product) => [p.id, p]));
   const bundledIds = new Set((items ?? []).map((i) => i.product_id));
   const availableProducts = (products ?? []).filter((p: Product) => !bundledIds.has(p.id));
+  const selectedProduct = selectedProductId ? productById.get(selectedProductId) : undefined;
 
   return (
     <Modal
@@ -408,6 +409,14 @@ function ManageItemsModal({ pkg, onClose }: { pkg: PremiumPackage; onClose: () =
           Add
         </Button>
       </Space>
+      {selectedProduct?.content_is_free && (
+        <Alert
+          type="warning"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="This item is currently free. Adding it to a bundle won't add any value, since everyone can already open it."
+        />
+      )}
 
       <List
         loading={itemsLoading}
@@ -435,6 +444,9 @@ function ManageItemsModal({ pkg, onClose }: { pkg: PremiumPackage; onClose: () =
                   ? `${product.display_name || item.product_id} (${product.feature_code === 'AR_CARD' ? 'AR Card' : 'Dongeng'}) — Rp ${product.price_idr.toLocaleString('id-ID')}`
                   : item.product_id}
               </Text>
+              {product?.content_is_free && (
+                <Tag color="green" style={{ marginLeft: 8 }}>Currently free</Tag>
+              )}
             </List.Item>
           );
         }}

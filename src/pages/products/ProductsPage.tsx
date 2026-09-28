@@ -14,6 +14,7 @@ import {
   message,
   Descriptions,
   Spin,
+  Tooltip,
 } from 'antd';
 import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -181,6 +182,11 @@ export default function ProductsPage() {
           <Tag color={record.feature_code === 'AR_CARD' ? 'blue' : 'purple'}>
             {record.feature_code === 'AR_CARD' ? 'AR Card' : record.feature_code === 'DONGENG' ? 'Dongeng' : '—'}
           </Tag>
+          {record.content_is_free && (
+            <Tooltip title="This item is flagged free, so nobody needs to buy this product. It is kept, and you can make the item premium again.">
+              <Tag color="green">Free override</Tag>
+            </Tooltip>
+          )}
         </div>
       ),
     },

@@ -11,6 +11,8 @@ interface ContentApiModule {
   update: (id: string, data: unknown) => Promise<unknown>;
   delete: (id: string) => Promise<unknown>;
   toggleVisibility: (id: string, hidden: boolean) => Promise<unknown>;
+  /** Present for content that can be made free (AR cards, dongeng). */
+  setFree?: (id: string, isFree: boolean) => Promise<unknown>;
 }
 
 export function useContentPage(key: string, api: ContentApiModule) {
@@ -53,6 +55,18 @@ export function useContentPage(key: string, api: ContentApiModule) {
     onError: () => message.error('Failed to update visibility'),
   });
 
+  const freeMutation = useMutation({
+    mutationFn: ({ id, isFree }: { id: string; isFree: boolean }) => {
+      if (!api.setFree) throw new Error('setFree not supported');
+      return api.setFree(id, isFree);
+    },
+    onSuccess: (_d, { isFree }) => {
+      invalidate();
+      message.success(isFree ? 'Made free' : 'Made premium');
+    },
+    onError: () => message.error('Failed to change access'),
+  });
+
   return {
     data: query.data?.data as unknown[],
     total: query.data?.total ?? 0,
@@ -68,6 +82,7 @@ export function useContentPage(key: string, api: ContentApiModule) {
     onDelete: (id: string) => deleteMutation.mutate(id),
     onToggleVisibility: (id: string, hidden: boolean) =>
       visibilityMutation.mutate({ id, hidden }),
+    onSetFree: (id: string, isFree: boolean) => freeMutation.mutate({ id, isFree }),
     onSave: (data: unknown) => {
       const item = editItem as { id?: string } | null;
       if (item?.id) {

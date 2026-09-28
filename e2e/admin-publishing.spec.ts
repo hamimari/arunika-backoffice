@@ -56,7 +56,7 @@ test.describe('admin publishing flows', () => {
     await dialog.getByLabel('Title').fill(title)
     await dialog.getByLabel('Image URL').fill('https://e2e.test/img.png')
     await dialog.getByLabel('Audio URL').fill('https://e2e.test/audio.mp3')
-    await pickOption(page, 'Is Free', 'Free')
+    await pickOption(page, 'Access', 'Free')
     await dialog.getByRole('button', { name: 'OK' }).click()
 
     const dongengRow = row(page, title)

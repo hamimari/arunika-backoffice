@@ -23,6 +23,8 @@ interface ContentTableProps<T extends ContentItem> {
   onEdit: (item: T) => void;
   onDelete: (id: string) => void;
   onToggleVisibility: (id: string, hidden: boolean) => void;
+  /** When given, each row gets a "Make free" / "Make premium" action. */
+  onSetFree?: (id: string, isFree: boolean) => void;
   expandable?: ExpandableConfig<T>;
 }
 
@@ -39,12 +41,13 @@ export default function ContentTable<T extends ContentItem>({
   onEdit,
   onDelete,
   onToggleVisibility,
+  onSetFree,
   expandable,
 }: ContentTableProps<T>) {
   const actionColumn: ColumnsType<T>[0] = {
     title: 'Actions',
     key: 'actions',
-    width: 180,
+    width: onSetFree ? 300 : 180,
     render: (_, record) => (
       <Space>
         <Tooltip title={record.hidden ? 'Show' : 'Hide'}>
@@ -59,6 +62,24 @@ export default function ContentTable<T extends ContentItem>({
           icon={<EditOutlined />}
           onClick={() => onEdit(record)}
         />
+        {onSetFree && (
+          <Popconfirm
+            title={record.is_free ? 'Make this item premium again?' : 'Make this item free?'}
+            description={
+              record.is_free
+                ? 'People who have not bought it will be locked out again. Earlier buyers keep access.' +
+                  (record.price_idr == null
+                    ? ' It has no product yet, so it stays free until you create one on the Products page.'
+                    : '')
+                : 'Everyone can open it without buying. Its product, orders and earlier buyers are kept, and you can make it premium again.'
+            }
+            onConfirm={() => onSetFree(record.id, !record.is_free)}
+            okText={record.is_free ? 'Yes, make premium' : 'Yes, make free'}
+            cancelText="Cancel"
+          >
+            <Button size="small">{record.is_free ? 'Make premium' : 'Make free'}</Button>
+          </Popconfirm>
+        )}
         <Popconfirm
           title="Delete this item?"
           onConfirm={() => onDelete(record.id)}

@@ -3,9 +3,12 @@ import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import ContentTable from '../../components/ContentTable';
+import AccessCell from '../../components/AccessCell';
+import AccessField from '../../components/AccessField';
 import { fairyTalesApi, categoriesApi, fairyTalePagesApi, dongengCategoriesApi } from '../../api/content';
 import { useContentPage } from '../../hooks/useContentPage';
 import type { ColumnsType } from 'antd/es/table';
+import type { Access } from '../../components/AccessCell';
 
 interface FairyTale {
   id: string;
@@ -15,6 +18,8 @@ interface FairyTale {
   image_url: string;
   audio_url: string;
   is_free: boolean;
+  access?: Access;
+  price_idr?: number | null;
   category_id: string;
   dongeng_category_id?: string;
   dongeng_sub_category_id?: string;
@@ -43,7 +48,7 @@ interface FairyTalePage {
 const tableColumns: ColumnsType<FairyTale> = [
   { title: 'Title', dataIndex: 'title', key: 'title' },
   { title: 'Age Range', key: 'age', render: (_, r) => `${r.age_start}–${r.age_end}` },
-  { title: 'Free', dataIndex: 'is_free', key: 'is_free', render: (v) => (v ? 'Yes' : 'No') },
+  { title: 'Access', key: 'access', render: (_, r) => <AccessCell item={r} /> },
 ];
 
 // --- Pages sub-component ---
@@ -233,10 +238,11 @@ export default function FairyTalesPage() {
         columns={tableColumns}
         onSearch={ctx.setSearch}
         onPageChange={ctx.onPageChange}
-        onAdd={() => { form.resetFields(); ctx.onAdd(); }}
+        onAdd={() => { form.resetFields(); form.setFieldsValue({ is_free: true }); ctx.onAdd(); }}
         onEdit={(item) => { form.setFieldsValue(item); ctx.onEdit(item); }}
         onDelete={ctx.onDelete}
         onToggleVisibility={ctx.onToggleVisibility}
+        onSetFree={ctx.onSetFree}
         expandable={{
           expandedRowRender: (record: FairyTale) => <FairyTalePages fairyTaleId={record.id} />,
         }}
@@ -267,9 +273,7 @@ export default function FairyTalesPage() {
           <Form.Item name="duration" label="Duration (seconds)">
             <InputNumber min={0} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="is_free" label="Is Free">
-            <Select options={[{ value: true, label: 'Free' }, { value: false, label: 'Premium' }]} />
-          </Form.Item>
+          <AccessField hasProduct={(ctx.editItem as FairyTale | null)?.price_idr != null} />
           <Form.Item name="category_id" label="Category">
             <Select
               options={categoryOptions}

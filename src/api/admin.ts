@@ -159,6 +159,8 @@ export interface Product extends StrikeOverride, StrikeDisplay {
   /** Google Play SKU selling this product; null = not purchasable via Play. */
   play_product_id?: string | null;
   is_active: boolean;
+  /** The AR card / dongeng this sells is flagged free: kept, but nobody needs it. */
+  content_is_free?: boolean;
   created_at: string;
   updated_at: string;
 }

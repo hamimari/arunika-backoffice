@@ -14,8 +14,19 @@ function contentApi(type: string) {
   };
 }
 
-export const fairyTalesApi = contentApi('fairy-tales');
-export const arCardsApi = contentApi('ar-cards');
+// AR cards and dongeng can be made free (or premium again) without touching
+// their product, orders or earlier buyers. It is its own endpoint, so saving
+// an item never changes it by accident.
+function contentApiWithFree(type: string) {
+  return {
+    ...contentApi(type),
+    setFree: (id: string, is_free: boolean) =>
+      api.patch(`/admin/content/${type}/${id}/free`, { is_free }).then((r) => r.data),
+  };
+}
+
+export const fairyTalesApi = contentApiWithFree('fairy-tales');
+export const arCardsApi = contentApiWithFree('ar-cards');
 export const tracingApi = contentApi('tracing-items');
 export const countingApi = contentApi('counting-questions');
 export const badgesApi = contentApi('badges');
