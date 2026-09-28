@@ -9,6 +9,7 @@ import {
   productsApi,
   packageItemsApi,
   ordersApi,
+  strikePriceApi,
 } from '../../api/admin';
 
 const mock = new MockAdapter(api);
@@ -211,5 +212,28 @@ describe('ordersApi', () => {
     await ordersApi.list({ status: 'PAID', page: 1, per_page: 20 });
     expect(mock.history.get[0].url).toBe('/admin/orders');
     expect(mock.history.get[0].params).toMatchObject({ status: 'PAID', page: 1, per_page: 20 });
+  });
+});
+
+describe('strikePriceApi', () => {
+  it('list calls GET /admin/strike-price-rules', async () => {
+    mock.onGet('/admin/strike-price-rules').reply(200, { data: [] });
+    await strikePriceApi.list();
+    expect(mock.history.get[0].url).toBe('/admin/strike-price-rules');
+  });
+
+  it('update PUTs the rule to /admin/strike-price-rules/:scope', async () => {
+    mock.onPut('/admin/strike-price-rules/DONGENG').reply(200, { data: {} });
+    const rule = { mode: 'PERCENT' as const, value: 20, starts_at: null, ends_at: '2026-10-31T16:59:00Z' };
+    await strikePriceApi.update('DONGENG', rule);
+    expect(JSON.parse(mock.history.put[0].data as string)).toEqual(rule);
+  });
+});
+
+describe('productsApi.update', () => {
+  it('sends the price and the strike-price override together', async () => {
+    mock.onPut('/admin/products/prod-1').reply(200, { data: {} });
+    await productsApi.update('prod-1', 39000, { strike_mode: null });
+    expect(JSON.parse(mock.history.put[0].data as string)).toEqual({ price_idr: 39000, strike_mode: null });
   });
 });

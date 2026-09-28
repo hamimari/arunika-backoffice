@@ -18,9 +18,12 @@ import { PlusOutlined, DeleteOutlined, EditOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { productsApi } from '../../api/admin';
-import type { Product, CreateProductInput } from '../../api/admin';
+import type { Product, CreateProductInput, StrikeOverride } from '../../api/admin';
 import { arCardsApi, fairyTalesApi } from '../../api/content';
 import type { ColumnsType } from 'antd/es/table';
+import StrikePriceFields from '../../components/StrikePriceFields';
+import StrikePriceCell from '../../components/StrikePriceCell';
+import { formToOverride, overrideToForm, type StrikeFormValues } from '../../utils/strikePrice';
 
 const { Text, Link } = Typography;
 
@@ -36,7 +39,8 @@ export default function ProductsPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [editingProduct, setEditingProduct] = useState<Product | null>(null);
   const [contentModalProduct, setContentModalProduct] = useState<Product | null>(null);
-  const [editForm] = Form.useForm<{ price_idr: number }>();
+  const [editForm] = Form.useForm<{ price_idr: number } & StrikeFormValues>();
+  const watchedEditPrice = Form.useWatch('price_idr', editForm);
   const [form] = Form.useForm<{ feature_code: 'AR_CARD' | 'DONGENG'; content_id: string; price_idr: number }>();
   const watchedFeatureCode = Form.useWatch('feature_code', form);
 
@@ -81,9 +85,13 @@ export default function ProductsPage() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ id, priceIdr }: { id: string; priceIdr: number }) => productsApi.update(id, priceIdr),
+    mutationFn: ({ id, priceIdr, strike }: { id: string; priceIdr: number; strike: StrikeOverride }) =>
+      productsApi.update(id, priceIdr, strike),
     onSuccess: () => { invalidate(); closeEditModal(); },
-    onError: () => message.error('Failed to update price'),
+    onError: (err: unknown) => {
+      const msg = (err as { response?: { data?: { error?: string } } })?.response?.data?.error;
+      message.error(msg || 'Failed to update product');
+    },
   });
 
   const openCreate = () => {
@@ -98,7 +106,7 @@ export default function ProductsPage() {
 
   const openEdit = (product: Product) => {
     setEditingProduct(product);
-    editForm.setFieldsValue({ price_idr: product.price_idr });
+    editForm.setFieldsValue({ price_idr: product.price_idr, ...overrideToForm(product) });
   };
 
   const closeEditModal = () => {
@@ -109,7 +117,11 @@ export default function ProductsPage() {
   const handleEditSubmit = async () => {
     const values = await editForm.validateFields();
     if (editingProduct) {
-      updateMutation.mutate({ id: editingProduct.id, priceIdr: values.price_idr });
+      updateMutation.mutate({
+        id: editingProduct.id,
+        priceIdr: values.price_idr,
+        strike: formToOverride(values),
+      });
     }
   };
 
@@ -158,6 +170,11 @@ export default function ProductsPage() {
       dataIndex: 'price_idr',
       key: 'price_idr',
       render: (v: number) => `Rp ${v.toLocaleString('id-ID')}`,
+    },
+    {
+      title: 'Harga coret',
+      key: 'strike',
+      render: (_: unknown, record: Product) => <StrikePriceCell item={record} />,
     },
     {
       title: 'Active',
@@ -280,13 +297,13 @@ export default function ProductsPage() {
       </Modal>
 
       <Modal
-        title={editingProduct ? `Edit Price — ${editingProduct.display_name || editingProduct.id.slice(0, 8) + '…'}` : 'Edit Price'}
+        title={editingProduct ? `Edit Product — ${editingProduct.display_name || editingProduct.id.slice(0, 8) + '…'}` : 'Edit Product'}
         open={editingProduct !== null}
         onOk={handleEditSubmit}
         onCancel={closeEditModal}
         okText="Save"
         confirmLoading={updateMutation.isPending}
-        width={420}
+        width={520}
       >
         <Form form={editForm} layout="vertical">
           <Form.Item
@@ -305,6 +322,7 @@ export default function ProductsPage() {
               parser={(v) => parseInt((v ?? '').replace(/,/g, ''), 10) as 1}
             />
           </Form.Item>
+          <StrikePriceFields price={watchedEditPrice} allowInherit />
         </Form>
       </Modal>
 

@@ -191,4 +191,41 @@ describe('PremiumPackagesPage', () => {
     const modal = await screen.findByRole('dialog');
     expect(within(modal).getByLabelText('Play Product ID')).toHaveValue(samplePack.play_product_id);
   });
+
+  it('pre-fills a package promo override and sends it on save', async () => {
+    const end = new Date(Date.now() + 7 * 24 * 3600 * 1000).toISOString();
+    const promoPack = {
+      ...samplePack,
+      price_idr: 79000,
+      strike_mode: 'PERCENT',
+      strike_value: 20,
+      strike_ends_at: end,
+      strike_price_idr: 99000,
+      discount_percent: 20,
+      promo_ends_at: end,
+    };
+    mock.onGet('/admin/premium/packs').reply(200, { data: [promoPack] });
+    mock.onPut('/admin/premium/packs/pkg-1').reply(200, { data: promoPack });
+    const user = userEvent.setup();
+
+    renderPage();
+
+    expect(await screen.findByText('Own promo')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: /edit/i }));
+    const modal = await screen.findByRole('dialog');
+    await waitFor(() => expect(within(modal).getByTestId('strike-preview')).toHaveTextContent('Rp 99.000'));
+    await user.click(within(modal).getByRole('button', { name: 'Save' }));
+
+    await waitFor(() => expect(mock.history.put.length).toBe(1));
+    const body = JSON.parse(mock.history.put[0].data as string);
+    expect(body).toMatchObject({
+      price_idr: 79000,
+      strike_mode: 'PERCENT',
+      strike_value: 20,
+      strike_starts_at: null,
+      strike_ends_at: end,
+    });
+    expect(body).not.toHaveProperty('strike_period');
+    expect(body).not.toHaveProperty('strike_price_idr');
+  });
 });

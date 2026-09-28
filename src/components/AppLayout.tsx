@@ -15,6 +15,7 @@ import {
   ShoppingOutlined,
   FileTextOutlined,
   ControlOutlined,
+  PercentageOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -47,6 +48,7 @@ const menuItems = [
   { key: '/products', icon: <ShoppingOutlined />, label: 'Products' },
   { key: '/orders', icon: <FileTextOutlined />, label: 'Orders' },
   { key: '/feature-flags', icon: <ControlOutlined />, label: 'App Features' },
+  { key: '/strike-prices', icon: <PercentageOutlined />, label: 'Harga Coret' },
 ];
 
 export default function AppLayout() {

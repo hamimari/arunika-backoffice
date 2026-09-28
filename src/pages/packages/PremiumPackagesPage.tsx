@@ -19,11 +19,16 @@ import { PlusOutlined, EditOutlined, DeleteOutlined, AppstoreOutlined } from '@a
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { premiumPackagesApi, productsApi, packageItemsApi } from '../../api/admin';
-import type { PremiumPackage, PremiumPackageInput, Product } from '../../api/admin';
+import type { PremiumPackage, PremiumPackageInput, Product, StrikeOverride } from '../../api/admin';
+import StrikePriceFields from '../../components/StrikePriceFields';
+import StrikePriceCell from '../../components/StrikePriceCell';
+import { formToOverride, overrideToForm, type StrikeFormValues } from '../../utils/strikePrice';
 
 const { Text } = Typography;
 
 const QUERY_KEY = ['premium-packages'];
+
+type PackageFormValues = Omit<PremiumPackageInput, keyof StrikeOverride> & StrikeFormValues;
 
 function formatPrice(price: number) {
   return `Rp ${price.toLocaleString('id-ID')}`;
@@ -33,7 +38,7 @@ export default function PremiumPackagesPage() {
   const queryClient = useQueryClient();
   const [modalOpen, setModalOpen] = useState(false);
   const [editingPack, setEditingPack] = useState<PremiumPackage | null>(null);
-  const [form] = Form.useForm<PremiumPackageInput>();
+  const [form] = Form.useForm<PackageFormValues>();
   const [initialPrice, setInitialPrice] = useState<number | null>(null);
   const [currentPrice, setCurrentPrice] = useState<number | null>(null);
   const [itemsPackage, setItemsPackage] = useState<PremiumPackage | null>(null);
@@ -78,7 +83,7 @@ export default function PremiumPackagesPage() {
 
   const openEdit = (pack: PremiumPackage) => {
     setEditingPack(pack);
-    form.setFieldsValue(pack);
+    form.setFieldsValue({ ...pack, ...overrideToForm(pack) });
     setInitialPrice(pack.price_idr);
     setCurrentPrice(pack.price_idr);
     setModalOpen(true);
@@ -93,16 +98,20 @@ export default function PremiumPackagesPage() {
   };
 
   const handleSubmit = async () => {
-    const values = await form.validateFields();
+    const { strike_mode, strike_value, strike_period, ...values } = await form.validateFields();
     // Content packages don't use duration_days — clear it even if a
     // leftover value exists from switching the Type select back and forth.
     if (values.type !== 'subscription') {
       values.duration_days = null;
     }
+    const data: PremiumPackageInput = {
+      ...values,
+      ...formToOverride({ strike_mode, strike_value, strike_period }),
+    };
     if (editingPack) {
-      updateMutation.mutate({ id: editingPack.id, data: values });
+      updateMutation.mutate({ id: editingPack.id, data });
     } else {
-      createMutation.mutate(values);
+      createMutation.mutate(data);
     }
   };
 
@@ -124,6 +133,11 @@ export default function PremiumPackagesPage() {
       dataIndex: 'price_idr',
       key: 'price_idr',
       render: (v: number) => formatPrice(v),
+    },
+    {
+      title: 'Harga coret',
+      key: 'strike',
+      render: (_: unknown, record: PremiumPackage) => <StrikePriceCell item={record} />,
     },
     {
       title: 'Type',
@@ -285,6 +299,7 @@ export default function PremiumPackagesPage() {
               onChange={(v) => setCurrentPrice(v ?? null)}
             />
           </Form.Item>
+          <StrikePriceFields price={currentPrice} allowInherit />
           <Form.Item name="type" label="Type" rules={[{ required: true, message: 'Type is required' }]}>
             <Select
               options={[

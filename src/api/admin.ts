@@ -66,7 +66,54 @@ export const featureFlagsApi = {
     api.patch(`/admin/feature-flags/${key}`, { is_enabled: isEnabled }).then((r) => r.data),
 };
 
-export interface PremiumPackage {
+export type StrikeMode = 'NONE' | 'PERCENT' | 'FIXED';
+export type StrikeScope = 'AR_CARD' | 'DONGENG' | 'PACKAGE';
+export type StrikeStatus = 'OFF' | 'SCHEDULED' | 'ACTIVE' | 'ENDED';
+
+/** A global promotional strike-price rule for one scope. */
+export interface StrikePriceRule {
+  scope: StrikeScope;
+  mode: StrikeMode;
+  value: number;
+  starts_at: string | null;
+  ends_at: string | null;
+  updated_at: string;
+  status: StrikeStatus;
+}
+
+export interface StrikePriceRuleInput {
+  mode: StrikeMode;
+  value: number;
+  starts_at: string | null;
+  ends_at: string | null;
+}
+
+/**
+ * Per-product / per-package strike-price override. A null (or absent)
+ * strike_mode means the item inherits its scope's global rule.
+ */
+export interface StrikeOverride {
+  strike_mode?: StrikeMode | null;
+  strike_value?: number | null;
+  strike_starts_at?: string | null;
+  strike_ends_at?: string | null;
+}
+
+/** The effective, display-only strike price the backend resolved right now. */
+export interface StrikeDisplay {
+  strike_price_idr: number | null;
+  discount_percent: number | null;
+  promo_ends_at: string | null;
+}
+
+export const strikePriceApi = {
+  list: (): Promise<{ data: StrikePriceRule[] }> =>
+    api.get('/admin/strike-price-rules').then((r) => r.data),
+  update: (scope: StrikeScope, data: StrikePriceRuleInput): Promise<{ data: StrikePriceRule }> =>
+    api.put(`/admin/strike-price-rules/${scope}`, data).then((r) => r.data),
+};
+
+export interface PremiumPackage extends StrikeOverride, StrikeDisplay {
   id: string;
   name: string;
   subtitle: string;
@@ -84,7 +131,10 @@ export interface PremiumPackage {
   updated_at: string;
 }
 
-export type PremiumPackageInput = Omit<PremiumPackage, 'id' | 'created_at' | 'updated_at'>;
+export type PremiumPackageInput = Omit<
+  PremiumPackage,
+  'id' | 'created_at' | 'updated_at' | keyof StrikeDisplay
+>;
 
 export const premiumPackagesApi = {
   list: (): Promise<{ data: PremiumPackage[] }> =>
@@ -99,7 +149,7 @@ export const premiumPackagesApi = {
     api.patch(`/admin/premium/packs/${id}/visibility`, { is_active: isActive }).then((r) => r.data),
 };
 
-export interface Product {
+export interface Product extends StrikeOverride, StrikeDisplay {
   id: string;
   feature_id: string;
   feature_code: 'AR_CARD' | 'DONGENG' | '';
@@ -122,8 +172,8 @@ export const productsApi = {
   list: (): Promise<{ data: Product[] }> => api.get('/admin/products').then((r) => r.data),
   create: (data: CreateProductInput): Promise<{ data: Product }> =>
     api.post('/admin/products', data).then((r) => r.data),
-  update: (id: string, priceIdr: number): Promise<{ data: Product }> =>
-    api.put(`/admin/products/${id}`, { price_idr: priceIdr }).then((r) => r.data),
+  update: (id: string, priceIdr: number, strike: StrikeOverride = {}): Promise<{ data: Product }> =>
+    api.put(`/admin/products/${id}`, { price_idr: priceIdr, ...strike }).then((r) => r.data),
   remove: (id: string): Promise<void> =>
     api.delete(`/admin/products/${id}`).then(() => undefined),
   toggleActive: (id: string, isActive: boolean): Promise<void> =>

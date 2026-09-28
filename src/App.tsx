@@ -24,6 +24,7 @@ import DongengCategoriesPage from './pages/content/DongengCategoriesPage';
 import ProductsPage from './pages/products/ProductsPage';
 import OrdersPage from './pages/orders/OrdersPage';
 import FeatureFlagsPage from './pages/settings/FeatureFlagsPage';
+import StrikePricePage from './pages/settings/StrikePricePage';
 
 function AppInit() {
   const initFromStorage = useAuthStore((s) => s.initFromStorage);
@@ -66,6 +67,7 @@ export default function App() {
             <Route path="products" element={<ProductsPage />} />
             <Route path="orders" element={<OrdersPage />} />
             <Route path="feature-flags" element={<FeatureFlagsPage />} />
+            <Route path="strike-prices" element={<StrikePricePage />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

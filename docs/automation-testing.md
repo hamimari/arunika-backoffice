@@ -18,7 +18,7 @@ history: `arunika_app/openspec/changes/add-automation-testing-strategy/`.
 ## Everyday loop
 
 ```bash
-make test-fast          # npm test  (137 tests, 16 files)
+make test-fast          # npm test  (168 tests, 19 files)
 make test-all           # lint + typecheck + coverage + ratchet (what a PR runs)
 npm run test:watch
 ```
@@ -37,7 +37,9 @@ doesn't pass through the interceptor that triggers it; mock accordingly.
 ## Admin E2E — Playwright
 
 Three publishing flows in `e2e/admin-publishing.spec.ts`: category → AR card →
-visibility → published; dongeng → publish; package → add items → publish. Final
+visibility → published; dongeng → publish; package → add items → publish. Two
+strike-price flows in `e2e/strike-prices.spec.ts`: a global "Harga Coret" rule is
+saved and shown as active; a package override reaches `/premium/packs`. Final
 state is verified through the app's public API, not just the UI.
 
 **1. Start the stack** (from `arunika-backend`) and leave it running:
