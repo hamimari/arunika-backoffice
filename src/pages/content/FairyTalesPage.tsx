@@ -1,7 +1,7 @@
 import { Modal, Form, Input, InputNumber, Select, Button, Table, Space, Popconfirm, Alert, Spin } from 'antd';
 import { PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ContentTable from '../../components/ContentTable';
 import AccessCell from '../../components/AccessCell';
 import AccessField from '../../components/AccessField';
@@ -9,6 +9,14 @@ import { fairyTalesApi, categoriesApi, fairyTalePagesApi, dongengCategoriesApi }
 import { useContentPage } from '../../hooks/useContentPage';
 import type { ColumnsType } from 'antd/es/table';
 import type { Access } from '../../components/AccessCell';
+import {
+  checkPageImage,
+  croppedHeightFraction,
+  loadImageSize,
+  pageImageError,
+  PAGE_IMAGE_LOAD_ERROR,
+  type ImageSize,
+} from '../../lib/pageImage';
 
 interface FairyTale {
   id: string;
@@ -51,6 +59,55 @@ const tableColumns: ColumnsType<FairyTale> = [
   { title: 'Access', key: 'access', render: (_, r) => <AccessCell item={r} /> },
 ];
 
+// Blocks saving a page whose image the app would crop badly (see lib/pageImage).
+async function validatePageImage(_: unknown, value?: string) {
+  const url = value?.trim();
+  if (!url) return;
+  let size: ImageSize;
+  try {
+    size = await loadImageSize(url);
+  } catch {
+    throw new Error(PAGE_IMAGE_LOAD_ERROR);
+  }
+  const result = checkPageImage(size);
+  if (result !== 'ok') throw new Error(pageImageError(size, result));
+}
+
+// Shows the image with the strips a ~2:1 phone screen crops away dimmed.
+function PageImagePreview({ url }: { url?: string }) {
+  const [loaded, setLoaded] = useState<{ url: string; size: ImageSize } | null>(null);
+  const trimmed = url?.trim() ?? '';
+
+  useEffect(() => {
+    if (!trimmed) return;
+    let cancelled = false;
+    // Wait for typing to pause so partial URLs aren't fetched.
+    const timer = setTimeout(() => {
+      loadImageSize(trimmed)
+        .then((size) => { if (!cancelled) setLoaded({ url: trimmed, size }); })
+        .catch(() => { /* the field validator reports the load error */ });
+    }, 400);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [trimmed]);
+
+  if (!trimmed || loaded?.url !== trimmed) return null;
+  const { size } = loaded;
+  const band = `${(croppedHeightFraction(size) / 2) * 100}%`;
+  const dim = { position: 'absolute', left: 0, right: 0, height: band, background: 'rgba(0,0,0,0.55)' } as const;
+  return (
+    <div data-testid="page-image-preview" style={{ marginBottom: 16 }}>
+      <div style={{ position: 'relative', width: 240, lineHeight: 0 }}>
+        <img src={trimmed} alt="Page image preview" style={{ width: '100%', borderRadius: 4 }} />
+        <div data-testid="crop-band-top" style={{ ...dim, top: 0 }} />
+        <div data-testid="crop-band-bottom" style={{ ...dim, bottom: 0 }} />
+      </div>
+      <div style={{ fontSize: 12, color: '#888', marginTop: 4 }}>
+        {size.width} × {size.height} — dimmed areas are cut off on a phone
+      </div>
+    </div>
+  );
+}
+
 // --- Pages sub-component ---
 function FairyTalePages({ fairyTaleId }: { fairyTaleId: string }) {
   const queryClient = useQueryClient();
@@ -58,6 +115,7 @@ function FairyTalePages({ fairyTaleId }: { fairyTaleId: string }) {
   const [pageModalOpen, setPageModalOpen] = useState(false);
   const [editingPage, setEditingPage] = useState<FairyTalePage | null>(null);
   const [pageForm] = Form.useForm();
+  const pageImageUrl = Form.useWatch('image_url', pageForm) as string | undefined;
 
   const { data: pages, isLoading, isError } = useQuery<FairyTalePage[]>({
     queryKey,
@@ -96,7 +154,12 @@ function FairyTalePages({ fairyTaleId }: { fairyTaleId: string }) {
   };
 
   const handleSave = async () => {
-    const values = await pageForm.validateFields();
+    let values;
+    try {
+      values = await pageForm.validateFields();
+    } catch {
+      return; // antd shows the field errors; the modal stays open
+    }
     if (editingPage) {
       updateMutation.mutate({ id: editingPage.id, data: values });
     } else {
@@ -172,9 +235,16 @@ function FairyTalePages({ fairyTaleId }: { fairyTaleId: string }) {
           <Form.Item name="page_number" label="Page Number">
             <InputNumber min={1} style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="image_url" label="Image URL">
+          <Form.Item
+            name="image_url"
+            label="Image URL"
+            validateTrigger="onBlur"
+            rules={[{ validator: validatePageImage }]}
+            extra="Landscape, about 16:9, at least 1280 px wide"
+          >
             <Input />
           </Form.Item>
+          <PageImagePreview url={pageImageUrl} />
           <Form.Item name="audio_url" label="Audio URL">
             <Input />
           </Form.Item>
