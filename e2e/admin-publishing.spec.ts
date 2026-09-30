@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { API, adminLogin, adminToken, pickOption, row, uniq } from './helpers'
 
 test.describe('admin publishing flows', () => {

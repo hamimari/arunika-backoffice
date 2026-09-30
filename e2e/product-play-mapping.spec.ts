@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { API, adminLogin, adminToken, row, uniq } from './helpers'
 
 // A single AR card can only be bought through Google Play once its product

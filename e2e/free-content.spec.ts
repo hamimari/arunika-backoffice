@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { API, adminLogin, adminToken, row, uniq } from './helpers'
 
 // An admin turns a paid AR card free from the AR Cards page, and back. The

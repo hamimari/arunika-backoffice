@@ -26,6 +26,12 @@ RUN rm /etc/nginx/conf.d/default.conf
 # Copy our SPA-aware nginx config
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 
+# The CSP's connect-src must name the API origin the bundle was built against.
+ARG VITE_API_BASE_URL=http://localhost:8080
+COPY nginx-security-headers.conf /etc/nginx/snippets/security-headers.conf
+RUN origin=$(echo "$VITE_API_BASE_URL" | sed -E 's#^(https?://[^/]+).*#\1#') \
+    && sed -i "s#__API_ORIGIN__#$origin#g" /etc/nginx/snippets/security-headers.conf
+
 # Copy the built assets from the builder stage
 COPY --from=builder /app/dist /usr/share/nginx/html
 

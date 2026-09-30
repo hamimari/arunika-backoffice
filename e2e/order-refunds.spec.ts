@@ -1,4 +1,5 @@
-import { test, expect, type APIRequestContext } from '@playwright/test'
+import type { APIRequestContext } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { API, adminLogin, row } from './helpers'
 
 // Seeded by the backend's test seed: a paid AR card and its Play-mapped product.

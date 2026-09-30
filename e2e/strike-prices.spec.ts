@@ -1,4 +1,5 @@
-import { test, expect, type Page } from '@playwright/test'
+import type { Page } from '@playwright/test'
+import { test, expect } from './fixtures'
 import { API, adminLogin, adminToken, pickOption, row } from './helpers'
 
 // Types a promo end date into the open form's "Periode promo" range picker.

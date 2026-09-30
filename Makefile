@@ -1,5 +1,5 @@
 # Local and CI use the same commands. See README "Testing".
-.PHONY: install lint typecheck test-fast test-all coverage-baseline
+.PHONY: install lint typecheck test-fast test-all coverage-baseline prerelease
 
 install:
 	npm ci
@@ -23,3 +23,7 @@ test-all: lint typecheck
 coverage-baseline:
 	npm run test:ci
 	npm run coverage:ratchet -- --write
+
+## prerelease: the pre-release security/performance gate (needs gitleaks, Docker).
+prerelease:
+	scripts/prerelease_check.sh
