@@ -49,6 +49,9 @@ jobs:
           CI: "true"
           E2E_HOLD: "1"
         run: |
+          # docker-compose.yml loads .env, which is gitignored; the e2e test
+          # compose file supplies the real values, so the example is enough.
+          cp -n .env.example .env
           nohup go test -tags e2e ./tests/e2e/ -run TestStackHold -count=1 -timeout 60m -v > ${{ github.workspace }}/stack.log 2>&1 &
           for i in $(seq 1 120); do
             if grep -q "E2E STACK READY" ${{ github.workspace }}/stack.log; then exit 0; fi
