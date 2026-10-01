@@ -8,6 +8,10 @@ export default defineConfig({
     globals: true,
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
+    // CI runners are several times slower than a laptop; antd dialogs plus
+    // userEvent typing run well past the 5s default there.
+    testTimeout: 30000,
+    hookTimeout: 30000,
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     coverage: {
       provider: 'v8',
