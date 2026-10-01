@@ -9,6 +9,8 @@ import {
   productsApi,
   packageItemsApi,
   ordersApi,
+  strikePriceApi,
+  orderRefundsApi,
 } from '../../api/admin';
 
 const mock = new MockAdapter(api);
@@ -124,6 +126,9 @@ describe('premiumPackagesApi', () => {
     const input = {
       name: 'Bulanan',
       subtitle: 'Akses 1 bulan',
+      description: null,
+      image_url: null,
+      play_product_id: null,
       price_idr: 39000,
       type: 'subscription' as const,
       badge_label: '',
@@ -143,6 +148,9 @@ describe('premiumPackagesApi', () => {
     const input = {
       name: 'Bulanan',
       subtitle: 'Akses 1 bulan',
+      description: null,
+      image_url: null,
+      play_product_id: null,
       price_idr: 39000,
       type: 'subscription' as const,
       badge_label: '',
@@ -205,5 +213,66 @@ describe('ordersApi', () => {
     await ordersApi.list({ status: 'PAID', page: 1, per_page: 20 });
     expect(mock.history.get[0].url).toBe('/admin/orders');
     expect(mock.history.get[0].params).toMatchObject({ status: 'PAID', page: 1, per_page: 20 });
+  });
+});
+
+describe('strikePriceApi', () => {
+  it('list calls GET /admin/strike-price-rules', async () => {
+    mock.onGet('/admin/strike-price-rules').reply(200, { data: [] });
+    await strikePriceApi.list();
+    expect(mock.history.get[0].url).toBe('/admin/strike-price-rules');
+  });
+
+  it('update PUTs the rule to /admin/strike-price-rules/:scope', async () => {
+    mock.onPut('/admin/strike-price-rules/DONGENG').reply(200, { data: {} });
+    const rule = { mode: 'PERCENT' as const, value: 20, starts_at: null, ends_at: '2026-10-31T16:59:00Z' };
+    await strikePriceApi.update('DONGENG', rule);
+    expect(JSON.parse(mock.history.put[0].data as string)).toEqual(rule);
+  });
+});
+
+describe('productsApi.update', () => {
+  it('sends the price and the strike-price override together', async () => {
+    mock.onPut('/admin/products/prod-1').reply(200, { data: {} });
+    await productsApi.update('prod-1', 39000, { strike_mode: null });
+    expect(JSON.parse(mock.history.put[0].data as string)).toEqual({ price_idr: 39000, strike_mode: null });
+  });
+});
+
+describe('order refunds', () => {
+  it('refund POSTs the reason and type', async () => {
+    mock.onPost('/admin/orders/o1/refund').reply(200, { data: {} });
+    await ordersApi.refund('o1', { reason: 'Pengguna salah beli kartu', refund_type: 'PRORATED' });
+    expect(JSON.parse(mock.history.post[0].data as string)).toEqual({
+      reason: 'Pengguna salah beli kartu',
+      refund_type: 'PRORATED',
+    });
+  });
+
+  it('refunds GETs the order refund history', async () => {
+    mock.onGet('/admin/orders/o1/refunds').reply(200, { data: [] });
+    await ordersApi.refunds('o1');
+    expect(mock.history.get[0].url).toBe('/admin/orders/o1/refunds');
+  });
+
+  it('sync POSTs to the refund', async () => {
+    mock.onPost('/admin/order-refunds/r1/sync').reply(200, { data: {} });
+    await orderRefundsApi.sync('r1');
+    expect(mock.history.post[0].url).toBe('/admin/order-refunds/r1/sync');
+  });
+});
+
+describe('productsApi.update Google Play mapping', () => {
+  it('leaves the mapping out when not given, sets it, or clears it with null', async () => {
+    mock.onPut('/admin/products/prod-1').reply(200, { data: {} });
+
+    await productsApi.update('prod-1', 39000);
+    await productsApi.update('prod-1', 39000, {}, 'card_frog');
+    await productsApi.update('prod-1', 39000, {}, null);
+
+    const bodies = mock.history.put.map((r) => JSON.parse(r.data as string));
+    expect(bodies[0]).not.toHaveProperty('play_product_id');
+    expect(bodies[1].play_product_id).toBe('card_frog');
+    expect(bodies[2].play_product_id).toBeNull();
   });
 });

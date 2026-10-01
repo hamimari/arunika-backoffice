@@ -1,0 +1,86 @@
+name: Merge (admin E2E)
+
+# Playwright flows against the real docker-compose stack owned by
+# arunika-backend (tests/e2e). Runs on merges here, on demand, and when the
+# backend or app repos dispatch `backoffice-merged`.
+on:
+  push:
+    branches: [master, master-new, main]
+  repository_dispatch:
+    types: [backoffice-merged]
+  workflow_dispatch:
+
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  e2e:
+    name: Playwright
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      # docker-compose.yml in the backend builds ../arunika-backoffice, so the
+      # two repos sit side by side under the workspace.
+      - uses: actions/checkout@v4
+        with:
+          path: arunika-backoffice
+
+      - uses: actions/checkout@v4
+        with:
+          repository: ${{ github.repository_owner }}/arunika-backend
+          path: arunika-backend
+          token: ${{ secrets.CROSS_REPO_TOKEN || github.token }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.25"
+          cache-dependency-path: arunika-backend/go.sum
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: arunika-backoffice/.nvmrc
+          cache: npm
+          cache-dependency-path: arunika-backoffice/package-lock.json
+
+      - name: Bring up the stack
+        working-directory: arunika-backend
+        env:
+          CI: "true"
+          E2E_HOLD: "1"
+        run: |
+          # docker-compose.yml loads .env, which is gitignored; the e2e test
+          # compose file supplies the real values, so the example is enough.
+          cp -n .env.example .env
+          nohup go test -tags e2e ./tests/e2e/ -run TestStackHold -count=1 -timeout 60m -v > ${{ github.workspace }}/stack.log 2>&1 &
+          for i in $(seq 1 120); do
+            if grep -q "E2E STACK READY" ${{ github.workspace }}/stack.log; then exit 0; fi
+            sleep 3
+          done
+          echo "stack did not become ready"; cat ${{ github.workspace }}/stack.log; exit 1
+
+      - name: Install dependencies and browser
+        working-directory: arunika-backoffice
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright
+        working-directory: arunika-backoffice
+        env:
+          CI: "true"
+        run: npm run e2e
+
+      - name: Upload Playwright report and traces
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-evidence
+          path: |
+            arunika-backoffice/playwright-report/
+            arunika-backoffice/test-results/
+            stack.log
+          if-no-files-found: ignore
+
+      # Nothing further to do on success: the stack lives inside the runner's
+      # background `go test` process and is destroyed with the job.

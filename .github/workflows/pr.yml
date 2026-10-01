@@ -1,0 +1,92 @@
+name: PR
+
+on:
+  pull_request:
+  push:
+    branches: [master, master-new, main]
+
+# A newer push to the same PR makes the in-flight run irrelevant.
+concurrency:
+  group: pr-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+
+  typecheck:
+    name: Typecheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npx tsc -b --noEmit
+
+  test:
+    name: Unit + component tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      - name: Run tests
+        run: npm run test:ci
+
+      # Enforcing: a pull request may not reduce coverage for any package.
+      # This is "no regression", not an absolute floor — several areas are
+      # still below the strategy's targets.
+      - name: Coverage ratchet
+        if: always()
+        env:
+          RATCHET_ENFORCE: "1"
+        run: npm run coverage:ratchet
+
+      - name: Report results
+        uses: dorny/test-reporter@v1
+        # Annotate the diff even when the suite failed — that is when it matters.
+        if: always()
+        with:
+          name: Backoffice tests
+          path: reports/junit.xml
+          reporter: jest-junit
+          fail-on-error: false
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: backoffice-coverage
+          path: coverage/
+          retention-days: 7
+
+  secrets:
+    name: Secret scan
+    runs-on: ubuntu-latest
+    steps:
+      # Full history, so a push scan can see every new commit.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      # Scans the commits this pull request or push adds; reviewed historical
+      # findings are listed in .gitleaksignore.
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_VERSION: 8.30.1

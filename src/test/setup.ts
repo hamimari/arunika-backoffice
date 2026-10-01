@@ -1,4 +1,8 @@
 import '@testing-library/jest-dom';
+import { cleanup, configure } from '@testing-library/react';
+import { afterAll, afterEach } from 'vitest';
+
+configure({ asyncUtilTimeout: 10000 });
 
 // jsdom doesn't implement matchMedia — antd's responsive grid/breakpoint
 // hooks call it on every mount, so any page test using antd components
@@ -25,3 +29,18 @@ if (!window.matchMedia) {
     dispatchEvent: () => false,
   }) as unknown as MediaQueryList;
 }
+
+// React's scheduler fires work via setImmediate. On a slow runner that work can
+// land after jsdom is torn down ("window is not defined"), so unmount and let
+// it drain while the window still exists.
+const drainScheduler = () => new Promise<void>((resolve) => setImmediate(resolve));
+
+afterEach(async () => {
+  cleanup();
+  await drainScheduler();
+});
+
+afterAll(async () => {
+  await drainScheduler();
+  await drainScheduler();
+});
