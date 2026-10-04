@@ -16,6 +16,14 @@ describe('analyticsApi', () => {
     expect(mock.history.get[0].params).toMatchObject({ days: 7 });
   });
 
+  it('getGrowth calls /admin/analytics/growth with days and unwraps data', async () => {
+    const metrics = { days: 7, activated_parents: 2 };
+    mock.onGet('/admin/analytics/growth').reply(200, { data: metrics });
+    const result = await analyticsApi.getGrowth(7);
+    expect(mock.history.get[0].params).toMatchObject({ days: 7 });
+    expect(result).toEqual(metrics);
+  });
+
   it('getNewUsers calls /admin/analytics/new-users', async () => {
     mock.onGet('/admin/analytics/new-users').reply(200, { data: [] });
     await analyticsApi.getNewUsers(30);

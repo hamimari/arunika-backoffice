@@ -13,6 +13,7 @@ import {
 import { Line, Bar } from 'react-chartjs-2';
 import { useQuery } from '@tanstack/react-query';
 import { analyticsApi } from '../../api/analytics';
+import GrowthMetricsCard from './GrowthMetricsCard';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, BarElement, Title, Tooltip, Legend);
 
@@ -228,6 +229,13 @@ export default function DashboardPage() {
           <Card title="Premium vs Free Users">
             {subLoading ? <Spin /> : <Bar data={subscriptionChartData} />}
           </Card>
+        </Col>
+      </Row>
+
+      {/* Tumbuh Kembang (aggregate only) */}
+      <Row gutter={[16, 16]} style={{ marginTop: 16 }}>
+        <Col xs={24}>
+          <GrowthMetricsCard days={30} />
         </Col>
       </Row>
     </div>

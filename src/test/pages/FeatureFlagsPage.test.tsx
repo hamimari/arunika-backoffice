@@ -63,4 +63,25 @@ describe('FeatureFlagsPage', () => {
     await waitFor(() => expect(mock.history.patch.length).toBe(1));
     expect(JSON.parse(mock.history.patch[0].data)).toEqual({ is_enabled: false });
   });
+
+  it('turns on Tumbuh Kembang, which is seeded hidden', async () => {
+    const growth = {
+      key: 'growth_tracking',
+      name: 'Tumbuh Kembang',
+      description: 'Tumbuh tab and Beranda growth card.',
+      is_enabled: false,
+      updated_at: '2026-10-04T00:00:00Z',
+    };
+    mock.onGet('/admin/feature-flags').reply(200, { data: [...flags, growth] });
+    mock.onPatch('/admin/feature-flags/growth_tracking').reply(200, { data: { ...growth, is_enabled: true } });
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await user.click(await screen.findByRole('switch', { name: 'Toggle Tumbuh Kembang' }));
+
+    await waitFor(() => expect(mock.history.patch.length).toBe(1));
+    expect(mock.history.patch[0].url).toBe('/admin/feature-flags/growth_tracking');
+    expect(JSON.parse(mock.history.patch[0].data)).toEqual({ is_enabled: true });
+  });
 });
