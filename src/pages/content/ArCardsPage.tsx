@@ -1,8 +1,9 @@
 import { Modal, Form, Input, Select, message } from 'antd';
+import { useQuery } from '@tanstack/react-query';
 import ContentTable from '../../components/ContentTable';
 import AccessCell from '../../components/AccessCell';
 import AccessField from '../../components/AccessField';
-import { arCardsApi } from '../../api/content';
+import { arCardsApi, arCardCategoriesApi } from '../../api/content';
 import { useContentPage } from '../../hooks/useContentPage';
 import type { ColumnsType } from 'antd/es/table';
 import type { Access } from '../../components/AccessCell';
@@ -21,6 +22,12 @@ interface ArCard {
   [key: string]: any;
 }
 
+interface ArCardCategory {
+  id: string;
+  name: string;
+  parent_id?: string | null;
+}
+
 const tableColumns: ColumnsType<ArCard> = [
   { title: 'Title', dataIndex: 'title', key: 'title' },
   { title: 'Type', dataIndex: 'type', key: 'type' },
@@ -33,8 +40,25 @@ export default function ArCardsPage() {
   const ctx = useContentPage('ar-cards', arCardsApi);
   const [form] = Form.useForm();
 
+  const { data: categoriesData } = useQuery({
+    queryKey: ['content', 'ar-card-categories', 'all'],
+    queryFn: () => arCardCategoriesApi.list({ page: 1, per_page: 100 }),
+  });
+  const categories = (categoriesData?.data ?? []) as ArCardCategory[];
+  const categoryOptions = categories
+    .filter((c) => !c.parent_id)
+    .map((c) => ({ value: c.id, label: c.name }));
+
+  const selectedCategoryId = Form.useWatch('category_id', form);
+  const subCategoryOptions = categories
+    .filter((c) => c.parent_id === selectedCategoryId)
+    .map((c) => ({ value: c.id, label: c.name }));
+
   const handleSave = async () => {
     const values = await form.validateFields();
+    // Category columns are nullable UUIDs: send null for "no category", never ''.
+    values.category_id = values.category_id || null;
+    values.sub_category_id = values.sub_category_id || null;
     // Saving a card never changes its access (the backend ignores is_free on
     // update), so a changed Access is applied through its own endpoint first.
     const item = ctx.editItem as ArCard | null;
@@ -103,6 +127,23 @@ export default function ArCardsPage() {
           <Form.Item name="printable_img" label="Printable Image URL">
             <Input />
           </Form.Item>
+          <Form.Item name="category_id" label="Category">
+            <Select
+              options={categoryOptions}
+              placeholder="Select a category"
+              allowClear
+              onChange={() => form.setFieldValue('sub_category_id', undefined)}
+            />
+          </Form.Item>
+          {subCategoryOptions.length > 0 && (
+            <Form.Item name="sub_category_id" label="Sub-category">
+              <Select
+                options={subCategoryOptions}
+                placeholder="Select a sub-category"
+                allowClear
+              />
+            </Form.Item>
+          )}
           <AccessField hasProduct={(ctx.editItem as ArCard | null)?.price_idr != null} />
         </Form>
       </Modal>
