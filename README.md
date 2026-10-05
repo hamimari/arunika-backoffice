@@ -115,6 +115,12 @@ The policy across all three Arunika repositories:
 
 ## Production Deployment
 
+Production (`https://admin.haloarunika.com`) deploys automatically. When a push to `master` passes `Merge (admin E2E)`, `.github/workflows/deploy.yml` connects to the VPS over SSH and runs `arunika-backend/deploy/deploy.sh backoffice <sha>`. The script rebuilds and restarts only the backoffice container, and the workflow then checks the site.
+
+To redeploy or roll back, open Actions → Deploy, click "Run workflow" and set `ref` to any commit on `master`.
+
+The VPS and GitHub setup, including the `production` environment secrets, is described in the backend README under "Automatic deploys".
+
 ### Option A: Docker (recommended)
 
 The project ships with a multi-stage `Dockerfile` that builds the app and serves it via nginx.
