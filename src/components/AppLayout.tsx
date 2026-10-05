@@ -53,6 +53,7 @@ const menuItems = [
   { key: '/packages', icon: <GiftOutlined />, label: 'Premium Packages' },
   { key: '/products', icon: <ShoppingOutlined />, label: 'Products' },
   { key: '/orders', icon: <FileTextOutlined />, label: 'Orders' },
+  { key: '/store-products', icon: <ShoppingOutlined />, label: 'Produk toko' },
   { key: '/feature-flags', icon: <ControlOutlined />, label: 'App Features' },
   { key: '/strike-prices', icon: <PercentageOutlined />, label: 'Harga Coret' },
   { key: '/settings/roles', icon: <TeamOutlined />, label: 'Pengaturan & peran' },

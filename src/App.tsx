@@ -23,6 +23,7 @@ import ArCardCategoriesPage from './pages/content/ArCardCategoriesPage';
 import DongengCategoriesPage from './pages/content/DongengCategoriesPage';
 import ProductsPage from './pages/products/ProductsPage';
 import OrdersPage from './pages/orders/OrdersPage';
+import StoreProductsPage from './pages/store-products/StoreProductsPage';
 import FeatureFlagsPage from './pages/settings/FeatureFlagsPage';
 import StrikePricePage from './pages/settings/StrikePricePage';
 import RolesPage from './pages/settings/RolesPage';
@@ -71,6 +72,7 @@ export default function App() {
             <Route path="packages" element={<PremiumPackagesPage />} />
             <Route path="products" element={<ProductsPage />} />
             <Route path="orders" element={<OrdersPage />} />
+            <Route path="store-products" element={<StoreProductsPage />} />
             <Route path="feature-flags" element={<FeatureFlagsPage />} />
             <Route path="strike-prices" element={<StrikePricePage />} />
             <Route path="angka" element={<AngkaPage />} />

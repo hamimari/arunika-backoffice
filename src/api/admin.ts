@@ -231,9 +231,47 @@ export interface Order {
   provider: 'midtrans' | 'google_play';
   has_purchase_token: boolean;
   refund_count?: number;
+  /** Keranjang Belanja: cart orders carry their items. */
+  is_cart?: boolean;
+  phase?: OrderPhase;
+  items?: OrderItem[];
+  granted_at?: string | null;
   created_at: string;
   updated_at: string;
 }
+
+/** The PRD's order state, derived by the backend. */
+export type OrderPhase = 'menunggu' | 'diproses' | 'diberikan' | 'gagal' | 'kedaluwarsa' | 'dikembalikan';
+
+/** One item of a cart order, with its locked price. */
+export interface OrderItem {
+  product_id: string;
+  title: string;
+  item_type: 'ar_card' | 'dongeng';
+  normal_idr: number;
+  price_idr: number;
+}
+
+export interface StoreProduct {
+  id: string;
+  store: 'google';
+  play_product_id: string;
+  price_idr: number;
+  active: boolean;
+  created_at: string;
+}
+
+export interface StoreProductCoverage {
+  products: StoreProduct[];
+  missing_totals: number[];
+  max_cart_items: number;
+  max_cart_total_idr: number;
+  price_step_idr: number;
+}
+
+export const storeProductsApi = {
+  coverage: (): Promise<{ data: StoreProductCoverage }> => api.get('/admin/store-products').then((r) => r.data),
+};
 
 export type RefundType = 'FULL' | 'PRORATED';
 
@@ -269,7 +307,15 @@ export const orderRefundsApi = {
 };
 
 export const ordersApi = {
-  list: (params: { status?: string; search?: string; page?: number; per_page?: number }): Promise<{
+  list: (params: {
+    status?: string;
+    search?: string;
+    page?: number;
+    per_page?: number;
+    cart?: boolean;
+    from?: string;
+    to?: string;
+  }): Promise<{
     data: Order[];
     total: number;
   }> => api.get('/admin/orders', { params }).then((r) => r.data),
@@ -291,4 +337,6 @@ export const ordersApi = {
     api.post(`/admin/orders/${id}/refund`, body).then((r) => r.data),
   refunds: (id: string): Promise<{ data: OrderRefund[] }> =>
     api.get(`/admin/orders/${id}/refunds`).then((r) => r.data),
+  /** "Berikan ulang": retries the grant of an order paid but not granted. */
+  regrant: (id: string): Promise<{ data: Order }> => api.post(`/admin/orders/${id}/regrant`).then((r) => r.data),
 };

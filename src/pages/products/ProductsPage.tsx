@@ -26,6 +26,7 @@ import type { ColumnsType } from 'antd/es/table';
 import StrikePriceFields from '../../components/StrikePriceFields';
 import StrikePriceCell from '../../components/StrikePriceCell';
 import { formToOverride, overrideToForm, type StrikeFormValues } from '../../utils/strikePrice';
+import { isOnPriceStep, MAX_CART_TOTAL_IDR } from '../../utils/priceStep';
 
 const { Text, Link } = Typography;
 
@@ -35,6 +36,18 @@ interface ContentOption {
 }
 
 const QUERY_KEY = ['products'];
+
+const PRICE_RULES = [
+  { required: true, message: 'Price is required' },
+  {
+    validator: (_: unknown, value: number | null | undefined) =>
+      value == null || isOnPriceStep(value)
+        ? Promise.resolve()
+        : Promise.reject(new Error('Harga harus kelipatan Rp 1.000 (mis. 1.000, 5.000, 15.000)')),
+  },
+];
+
+const PRICE_EXTRA = `Kelipatan Rp 1.000. Total keranjang maksimal Rp ${MAX_CART_TOTAL_IDR.toLocaleString('id-ID')}.`;
 
 export default function ProductsPage() {
   const queryClient = useQueryClient();
@@ -329,10 +342,8 @@ export default function ProductsPage() {
           <Form.Item
             name="price_idr"
             label="Price (IDR)"
-            rules={[
-              { required: true, message: 'Price is required' },
-              { type: 'number', min: 1, message: 'Price must be a positive integer' },
-            ]}
+            rules={PRICE_RULES}
+            extra={PRICE_EXTRA}
           >
             <InputNumber
               style={{ width: '100%' }}
@@ -365,10 +376,8 @@ export default function ProductsPage() {
           <Form.Item
             name="price_idr"
             label="Price (IDR)"
-            rules={[
-              { required: true, message: 'Price is required' },
-              { type: 'number', min: 1, message: 'Price must be a positive integer' },
-            ]}
+            rules={PRICE_RULES}
+            extra={PRICE_EXTRA}
           >
             <InputNumber
               style={{ width: '100%' }}

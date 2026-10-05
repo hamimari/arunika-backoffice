@@ -15,12 +15,14 @@ import {
   Drawer,
   Alert,
   Empty,
+  DatePicker,
 } from 'antd';
 import { SyncOutlined, RollbackOutlined } from '@ant-design/icons';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ordersApi, usersApi, productsApi, premiumPackagesApi, orderRefundsApi } from '../../api/admin';
-import type { Order, OrderRefund, RefundType } from '../../api/admin';
+import type { Order, OrderPhase, OrderRefund, RefundType } from '../../api/admin';
+import type { Dayjs } from 'dayjs';
 import type { ColumnsType } from 'antd/es/table';
 
 const { Text, Link } = Typography;
@@ -45,6 +47,15 @@ const STATUS_COLORS: Record<Order['status'], string> = {
   REFUNDED: 'volcano',
 };
 
+const PHASE_LABEL: Record<OrderPhase, { label: string; color: string }> = {
+  menunggu: { label: 'Menunggu', color: 'orange' },
+  diproses: { label: 'Dibayar, belum diberikan', color: 'gold' },
+  diberikan: { label: 'Diberikan', color: 'green' },
+  gagal: { label: 'Gagal', color: 'red' },
+  kedaluwarsa: { label: 'Kedaluwarsa', color: 'default' },
+  dikembalikan: { label: 'Dikembalikan', color: 'volcano' },
+};
+
 export default function OrdersPage() {
   const [statusFilter, setStatusFilter] = useState<string | undefined>();
   const [search, setSearch] = useState('');
@@ -54,14 +65,36 @@ export default function OrdersPage() {
   const [recoverPlayOrder, setRecoverPlayOrder] = useState<Order | null>(null);
   const [refundOrder, setRefundOrder] = useState<Order | null>(null);
   const [refundsOrder, setRefundsOrder] = useState<Order | null>(null);
+  const [cartOnly, setCartOnly] = useState(false);
+  const [range, setRange] = useState<[Dayjs | null, Dayjs | null] | null>(null);
   const perPage = 20;
   const queryClient = useQueryClient();
 
-  const queryKey = ['orders', statusFilter, search, page];
+  const from = range?.[0]?.format('YYYY-MM-DD');
+  const to = range?.[1]?.format('YYYY-MM-DD');
+  const queryKey = ['orders', statusFilter, search, page, cartOnly, from, to];
 
   const { data, isLoading } = useQuery({
     queryKey,
-    queryFn: () => ordersApi.list({ status: statusFilter, search: search || undefined, page, per_page: perPage }),
+    queryFn: () =>
+      ordersApi.list({
+        status: statusFilter,
+        search: search || undefined,
+        page,
+        per_page: perPage,
+        cart: cartOnly || undefined,
+        from,
+        to,
+      }),
+  });
+
+  const regrantMutation = useMutation({
+    mutationFn: (id: string) => ordersApi.regrant(id),
+    onSuccess: () => {
+      message.success('Item sudah diberikan ke pengguna');
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+    },
+    onError: (err: unknown) => message.error(extractErrorMessage(err, 'Gagal memberikan ulang')),
   });
 
   const syncMutation = useMutation({
@@ -110,7 +143,11 @@ export default function OrdersPage() {
       key: 'item',
       render: (_: unknown, record: Order) => (
         <Link onClick={() => setItemModalOrder(record)}>
-          {record.package_id ? (
+          {record.is_cart ? (
+            <span>
+              <Tag color="cyan">Keranjang</Tag> {record.items?.length ?? 0} item
+            </span>
+          ) : record.package_id ? (
             <span>
               <Tag color="purple">Package</Tag> {record.package_name ?? record.package_id.slice(0, 8) + '…'}
             </span>
@@ -132,7 +169,12 @@ export default function OrdersPage() {
       title: 'Status',
       dataIndex: 'status',
       key: 'status',
-      render: (v: Order['status']) => <Tag color={STATUS_COLORS[v] ?? 'default'}>{v}</Tag>,
+      render: (v: Order['status'], record: Order) => (
+        <Space size={4} wrap>
+          <Tag color={STATUS_COLORS[v] ?? 'default'}>{v}</Tag>
+          {record.phase === 'diproses' && <Tag color={PHASE_LABEL.diproses.color}>{PHASE_LABEL.diproses.label}</Tag>}
+        </Space>
+      ),
     },
     {
       title: 'Provider',
@@ -173,6 +215,20 @@ export default function OrdersPage() {
         // was created against — a Play order with a token already on file
         // syncs in one click just like Midtrans; only a Play order with no
         // token yet needs an admin to supply one.
+        // Paid in Google Play but the grant has not happened yet: retry it
+        // with the token on file.
+        if (record.phase === 'diproses') {
+          return (
+            <Button
+              size="small"
+              type="primary"
+              loading={regrantMutation.isPending && regrantMutation.variables === record.id}
+              onClick={() => regrantMutation.mutate(record.id)}
+            >
+              Berikan ulang
+            </Button>
+          );
+        }
         if (record.provider === 'google_play' && !record.has_purchase_token) {
           return (
             <Button size="small" onClick={() => setRecoverPlayOrder(record)}>
@@ -212,12 +268,20 @@ export default function OrdersPage() {
           onChange={(v) => { setStatusFilter(v); setPage(1); }}
           options={[
             { value: 'PENDING', label: 'Pending' },
+            { value: 'PROCESSING', label: 'Dibayar, belum diberikan' },
             { value: 'PAID', label: 'Paid' },
             { value: 'FAILED', label: 'Failed' },
             { value: 'EXPIRED', label: 'Expired' },
             { value: 'REFUNDED', label: 'Refunded' },
           ]}
         />
+        <DatePicker.RangePicker
+          aria-label="Filter by date"
+          onChange={(v) => { setRange(v); setPage(1); }}
+        />
+        <Checkbox checked={cartOnly} onChange={(e) => { setCartOnly(e.target.checked); setPage(1); }}>
+          Hanya keranjang
+        </Checkbox>
         <Button
           icon={<SyncOutlined />}
           loading={reconcilePlayMutation.isPending}
@@ -335,6 +399,59 @@ function UserDetailModal({ userId, onClose }: { userId: string; onClose: () => v
 }
 
 function ItemDetailModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  if (order.is_cart) return <CartOrderModal order={order} onClose={onClose} />;
+  return <SingleItemModal order={order} onClose={onClose} />;
+}
+
+// A cart order: every item with its locked price, the totals and what
+// support needs to find the payment in Google Play.
+function CartOrderModal({ order, onClose }: { order: Order; onClose: () => void }) {
+  const items = order.items ?? [];
+  const subtotal = items.reduce((sum, it) => sum + it.normal_idr, 0);
+  const phase = order.phase ? PHASE_LABEL[order.phase] : undefined;
+  return (
+    <Modal title="Pesanan keranjang" open onCancel={onClose} footer={<Button onClick={onClose}>Close</Button>} width={600}>
+      <Table
+        size="small"
+        rowKey="product_id"
+        pagination={false}
+        dataSource={items}
+        columns={[
+          { title: 'Item', dataIndex: 'title', key: 'title' },
+          {
+            title: 'Jenis',
+            dataIndex: 'item_type',
+            key: 'item_type',
+            render: (v: string) => (v === 'dongeng' ? <Tag color="purple">Dongeng</Tag> : <Tag color="blue">Kartu AR</Tag>),
+          },
+          {
+            title: 'Harga terkunci',
+            key: 'price',
+            render: (_: unknown, it) => (
+              <span>
+                {formatIdr(it.price_idr)}{' '}
+                {it.normal_idr > it.price_idr && <Text delete type="secondary">{formatIdr(it.normal_idr)}</Text>}
+              </span>
+            ),
+          },
+        ]}
+      />
+      <Descriptions bordered column={1} size="small" style={{ marginTop: 16 }}>
+        <Descriptions.Item label="Harga normal">{formatIdr(subtotal)}</Descriptions.Item>
+        <Descriptions.Item label="Total">{formatIdr(order.amount_idr)}</Descriptions.Item>
+        <Descriptions.Item label="Tahap">{phase ? <Tag color={phase.color}>{phase.label}</Tag> : '—'}</Descriptions.Item>
+        <Descriptions.Item label="Diberikan">
+          {order.granted_at ? new Date(order.granted_at).toLocaleString('id-ID') : '—'}
+        </Descriptions.Item>
+        <Descriptions.Item label="Transaksi toko">
+          {order.has_purchase_token ? 'Token Google Play tersimpan' : 'Belum ada'}
+        </Descriptions.Item>
+      </Descriptions>
+    </Modal>
+  );
+}
+
+function SingleItemModal({ order, onClose }: { order: Order; onClose: () => void }) {
   const isPackage = !!order.package_id;
 
   const { data: products, isLoading: productsLoading } = useQuery({

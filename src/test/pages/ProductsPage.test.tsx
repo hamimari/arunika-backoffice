@@ -110,6 +110,23 @@ describe('ProductsPage', () => {
     });
   });
 
+  it('refuses a price that is not a whole Rp 1.000', async () => {
+    mock.onGet('/admin/products').reply(200, { data: [promoProduct] });
+    const user = userEvent.setup();
+
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /edit/i }));
+    const modal = await screen.findByRole('dialog');
+    const price = within(modal).getByLabelText('Price (IDR)');
+    await user.clear(price);
+    await user.type(price, '1500');
+    await user.click(within(modal).getByRole('button', { name: 'Save' }));
+
+    expect(await within(modal).findByText(/kelipatan Rp 1\.000 \(mis/)).toBeInTheDocument();
+    expect(mock.history.put).toHaveLength(0);
+  });
+
   it('sends a null strike_mode when switching back to the global rule', async () => {
     mock.onGet('/admin/products').reply(200, { data: [promoProduct] });
     mock.onPut('/admin/products/prod-1').reply(200, { data: promoProduct });
