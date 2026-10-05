@@ -14,6 +14,7 @@ import {
   ControlOutlined,
   PercentageOutlined,
   FontSizeOutlined,
+  NumberOutlined,
   TeamOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
@@ -42,6 +43,7 @@ const menuItems = [
     children: [
       { key: '/content/fairy-tales', icon: <BookOutlined />, label: 'Fairy Tales' },
       { key: '/content/ar-cards', icon: <PictureOutlined />, label: 'AR Cards' },
+      { key: '/angka', icon: <NumberOutlined />, label: 'Angka' },
       { key: '/huruf', icon: <FontSizeOutlined />, label: 'Huruf' },
     ],
   },
@@ -56,9 +58,12 @@ const menuItems = [
   { key: '/settings/roles', icon: <TeamOutlined />, label: 'Pengaturan & peran' },
 ];
 
-/** The menu entry to highlight: a letter editor (/huruf/:id) highlights Huruf. */
+/** The menu entry to highlight: an editor page (/huruf/:id,
+ *  /angka/levels/:id) highlights its module. */
 function selectedMenuKey(pathname: string): string {
-  return pathname.startsWith('/huruf') ? '/huruf' : pathname;
+  if (pathname.startsWith('/huruf')) return '/huruf';
+  if (pathname.startsWith('/angka')) return '/angka';
+  return pathname;
 }
 
 export default function AppLayout() {

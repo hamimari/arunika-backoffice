@@ -1,19 +1,11 @@
 import { useEffect, useRef, useState } from 'react';
-import type { FieldError, HurufLetterRow, HurufStroke } from '../../api/huruf';
+import type { FieldError, HurufStroke } from '../../api/huruf';
 import { parsePath, samplePath, type Point } from '../../lib/svgPath';
 
 export const TEAL = '#1F6F66';
 
-/** Autosave fires this long after the last edit. */
-export const AUTOSAVE_MS = 2000;
-
-export type StatusFilter = 'all' | 'published' | 'draft' | 'hidden';
-
-/** Which status tab a letter belongs to. "Ada perubahan" counts as Terbit. */
-export function statusGroup(l: HurufLetterRow): Exclude<StatusFilter, 'all'> {
-  if (l.status === 'hidden') return 'hidden';
-  return l.version == null ? 'draft' : 'published';
-}
+// Shared with the Angka editors; re-exported for the Huruf pages.
+export { AUTOSAVE_MS, statusGroup, urlWarning, type StatusFilter } from '../../components/content/contentUtils';
 
 /** Indonesian text for a publish validation error. */
 export function fieldErrorText(e: FieldError, upper: string): string {
@@ -37,22 +29,6 @@ export function fieldErrorText(e: FieldError, upper: string): string {
     default:
       return e.code;
   }
-}
-
-/** A problem with an external URL the backend would also refuse or the app
- *  couldn't load, or null. */
-export function urlWarning(url: string): string | null {
-  let u: URL;
-  try {
-    u = new URL(url.trim());
-  } catch {
-    return "URL harus lengkap, misalnya https://media.haloarunika.com/huruf/apel.png";
-  }
-  if (u.protocol !== "https:") return "URL harus diawali https://";
-  if (u.hostname.endsWith(".r2.dev")) {
-    return "Domain r2.dev diblokir sebagian provider di Indonesia. Pakai domain sendiri, misalnya media.haloarunika.com.";
-  }
-  return null;
 }
 
 export interface Sampled {

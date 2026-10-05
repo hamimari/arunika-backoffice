@@ -7,7 +7,7 @@ import { useNavigate } from 'react-router-dom';
 import { hurufApi, type HurufLetterRow } from '../../api/huruf';
 import { useCanPublish } from '../../store/authStore';
 import { statusGroup, type StatusFilter } from './hurufUtils';
-import StatusTag from './StatusTag';
+import StatusTag from '../../components/content/StatusTag';
 import { mediaUrl } from '../../api/client';
 
 const { Text, Paragraph } = Typography;
@@ -122,7 +122,7 @@ export default function HurufListPage() {
       width: 100,
       render: (_: unknown, l: HurufLetterRow) => `${l.stroke_count} garis`,
     },
-    { title: 'Status', key: 'status', width: 140, render: (_: unknown, l: HurufLetterRow) => <StatusTag letter={l} /> },
+    { title: 'Status', key: 'status', width: 140, render: (_: unknown, l: HurufLetterRow) => <StatusTag item={l} /> },
     {
       title: 'Versi',
       key: 'version',

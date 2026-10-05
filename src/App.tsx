@@ -26,6 +26,8 @@ import OrdersPage from './pages/orders/OrdersPage';
 import FeatureFlagsPage from './pages/settings/FeatureFlagsPage';
 import StrikePricePage from './pages/settings/StrikePricePage';
 import RolesPage from './pages/settings/RolesPage';
+import AngkaPage from './pages/angka/AngkaPage';
+import AngkaLevelEditorPage from './pages/angka/AngkaLevelEditorPage';
 import HurufListPage from './pages/huruf/HurufListPage';
 import HurufEditorPage from './pages/huruf/HurufEditorPage';
 
@@ -71,6 +73,8 @@ export default function App() {
             <Route path="orders" element={<OrdersPage />} />
             <Route path="feature-flags" element={<FeatureFlagsPage />} />
             <Route path="strike-prices" element={<StrikePricePage />} />
+            <Route path="angka" element={<AngkaPage />} />
+            <Route path="angka/levels/:id" element={<AngkaLevelEditorPage />} />
             <Route path="huruf" element={<HurufListPage />} />
             <Route path="huruf/:id" element={<HurufEditorPage />} />
             <Route path="settings/roles" element={<RolesPage />} />

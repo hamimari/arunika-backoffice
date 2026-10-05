@@ -3,7 +3,7 @@ import { Button, Input, Progress, Segmented, Space, Typography } from 'antd';
 import { PauseCircleFilled, PlayCircleFilled, UploadOutlined } from '@ant-design/icons';
 import { assetsApi, uploadErrorText, type Asset, type AssetKind } from '../../api/assets';
 import { mediaUrl } from '../../api/client';
-import { urlWarning } from './hurufUtils';
+import { urlWarning } from './contentUtils';
 
 const { Text } = Typography;
 
@@ -23,11 +23,26 @@ interface Props {
   onRemove?: () => void;
   /** Publish validation message for this field. */
   error?: string;
+  /** Overrides the file rules shown before anything is uploaded. */
+  hint?: string;
+  /** Example URL for "Pakai URL". */
+  placeholder?: string;
 }
 
 /** An image or audio slot: an uploaded file (details, play, "Ganti" /
  *  "Hapus") or, with "Pakai URL", a file already hosted elsewhere (R2). */
-export default function AssetField({ kind, label, asset, url = '', onUploaded, onUrlChange, onRemove, error }: Props) {
+export default function AssetField({
+  kind,
+  label,
+  asset,
+  url = '',
+  onUploaded,
+  onUrlChange,
+  onRemove,
+  error,
+  hint,
+  placeholder,
+}: Props) {
   const input = useRef<HTMLInputElement>(null);
   const audio = useRef<HTMLAudioElement | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -114,9 +129,10 @@ export default function AssetField({ kind, label, asset, url = '', onUploaded, o
                     ? kind === 'image'
                       ? `${asset.original_name} · ${asset.width} × ${asset.height} · ${kb(asset.bytes)} · maks 500 KB`
                       : `${asset.original_name} · ${seconds(asset.duration_ms ?? 0)} · ${kb(asset.bytes)}`
-                    : kind === 'image'
-                      ? 'PNG atau WebP persegi · maks 500 KB'
-                      : 'MP3 atau AAC · maks 10 detik · maks 300 KB'}
+                    : (hint ??
+                      (kind === 'image'
+                        ? 'PNG atau WebP persegi · maks 500 KB'
+                        : 'MP3 atau AAC · maks 10 detik · maks 300 KB'))}
               </Text>
             </div>
           </div>
@@ -152,9 +168,10 @@ export default function AssetField({ kind, label, asset, url = '', onUploaded, o
           style={{ marginTop: 8 }}
           aria-label={`URL ${label}`}
           placeholder={
-            kind === 'image'
+            placeholder ??
+            (kind === 'image'
               ? 'https://media.haloarunika.com/huruf/apel.png'
-              : 'https://media.haloarunika.com/huruf/a.mp3'
+              : 'https://media.haloarunika.com/huruf/a.mp3')
           }
           value={url}
           status={message ? 'error' : undefined}

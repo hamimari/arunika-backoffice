@@ -6,11 +6,11 @@ import { Link, useParams } from 'react-router-dom';
 import { errorCode, hurufApi, validationFields, type HurufContent, type HurufDraft } from '../../api/huruf';
 import type { Asset } from '../../api/assets';
 import { useCanPublish } from '../../store/authStore';
-import AssetField from './AssetField';
-import HistoryDrawer from './HistoryDrawer';
+import AssetField from '../../components/content/AssetField';
+import HistoryDrawer from '../../components/content/HistoryDrawer';
 import PhonePreview, { HighlightedWord } from './PhonePreview';
 import StrokeEditor from './StrokeEditor';
-import StatusTag from './StatusTag';
+import StatusTag from '../../components/content/StatusTag';
 import { AUTOSAVE_MS, fieldErrorText } from './hurufUtils';
 
 const { Text, Title } = Typography;
@@ -175,7 +175,7 @@ function LetterEditor({ id, initial, reload }: EditorProps) {
               Huruf {meta.upper}
             </Title>
             {unpublished && meta.version != null && <Tag color="gold">Ada perubahan belum terbit</Tag>}
-            <StatusTag letter={meta} />
+            <StatusTag item={meta} />
           </Space>
           <div>
             <Text type="secondary">
@@ -416,7 +416,11 @@ function LetterEditor({ id, initial, reload }: EditorProps) {
       </Row>
 
       <HistoryDrawer
-        letterId={id}
+        entityType="letter"
+        entityId={id}
+        loadVersions={() => hurufApi.versions(id)}
+        rollback={(v) => hurufApi.rollback(id, v)}
+        listQueryKey={['huruf-letters']}
         open={historyOpen}
         onClose={() => setHistoryOpen(false)}
         onRolledBack={() => void reload()}
