@@ -2,7 +2,8 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
 import api from '../../api/client';
-import { useAuthStore } from '../../store/authStore';
+import { renderHook } from '@testing-library/react';
+import { useAuthStore, useCanPublish } from '../../store/authStore';
 
 /**
  * The auth store decides whether ProtectedRoute lets an admin through.
@@ -103,5 +104,60 @@ describe('authStore', () => {
 
     expect(useAuthStore.getState().isAuthenticated).toBe(false);
     expect(useAuthStore.getState().accessToken).toBeNull();
+  });
+
+  it('should_remember_the_content_role_and_forget_it_on_logout', async () => {
+    mock.onPost('/admin/auth/login').reply(200, {
+      access_token: 'a',
+      refresh_token: 'r',
+      admin_id: 'admin-1',
+      role: 'editor',
+    });
+    mock.onPost('/admin/auth/logout').reply(200, {});
+
+    await useAuthStore.getState().login('editor@example.test', 'secret');
+    expect(useAuthStore.getState().role).toBe('editor');
+    expect(localStorage.getItem('admin_role')).toBe('editor');
+
+    await useAuthStore.getState().logout();
+    expect(useAuthStore.getState().role).toBeNull();
+    expect(localStorage.getItem('admin_role')).toBeNull();
+  });
+
+  it('should_restore_the_role_from_storage', () => {
+    localStorage.setItem('admin_access_token', 't');
+    localStorage.setItem('admin_role', 'publisher');
+    useAuthStore.getState().initFromStorage();
+    expect(useAuthStore.getState().role).toBe('publisher');
+    useAuthStore.getState().setRole(null);
+    expect(localStorage.getItem('admin_role')).toBeNull();
+  });
+
+  it('should_allow_publishing_unless_the_role_is_editor', () => {
+    useAuthStore.setState({ role: 'editor' });
+    expect(renderHook(() => useCanPublish()).result.current).toBe(false);
+    useAuthStore.setState({ role: 'publisher' });
+    expect(renderHook(() => useCanPublish()).result.current).toBe(true);
+    // A session from before roles existed: the backend still decides.
+    useAuthStore.setState({ role: null });
+    expect(renderHook(() => useCanPublish()).result.current).toBe(true);
+  });
+
+  it('should_update_the_role_when_a_token_refresh_reports_one', async () => {
+    localStorage.setItem('admin_access_token', 'expired');
+    localStorage.setItem('admin_refresh_token', 'refresh-abc');
+    localStorage.setItem('admin_id', 'admin-1');
+    useAuthStore.setState({ role: 'publisher' });
+    let attempt = 0;
+    mock.onGet('/admin/huruf/letters').reply(() => {
+      attempt += 1;
+      return attempt === 1 ? [401, {}] : [200, { data: [] }];
+    });
+    bareAxios.onPost(/\/admin\/auth\/refresh$/).reply(200, { access_token: 'fresh', role: 'editor' });
+
+    await api.get('/admin/huruf/letters');
+
+    expect(useAuthStore.getState().role).toBe('editor');
+    expect(localStorage.getItem('admin_role')).toBe('editor');
   });
 });

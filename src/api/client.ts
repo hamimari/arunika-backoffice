@@ -1,9 +1,19 @@
 import axios from 'axios';
+import type { AdminRole } from './auth';
 
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'http://localhost:8080',
   headers: { 'Content-Type': 'application/json' },
 });
+
+/**
+ * Resolves a media URL against the API base URL. A development backend
+ * returns relative `/media/...` paths; absolute URLs pass through.
+ */
+export function mediaUrl(url?: string | null): string {
+  if (!url) return '';
+  return new URL(url, api.defaults.baseURL).toString();
+}
 
 // Attach admin JWT to every request.
 api.interceptors.request.use((config) => {
@@ -18,6 +28,7 @@ function logoutAndRedirect() {
   localStorage.removeItem('admin_access_token');
   localStorage.removeItem('admin_refresh_token');
   localStorage.removeItem('admin_id');
+  localStorage.removeItem('admin_role');
   window.location.href = '/login';
 }
 
@@ -27,6 +38,13 @@ function logoutAndRedirect() {
 // request. Concurrent 401s while a refresh is already in flight share the
 // same refresh promise instead of each firing their own refresh call.
 let refreshPromise: Promise<string> | null = null;
+
+// Told about the role a token refresh returns. Registered by the auth store,
+// so this module never imports the store (which imports it, via auth.ts).
+let roleListener: ((role: AdminRole) => void) | null = null;
+export function setRoleListener(listener: ((role: AdminRole) => void) | null) {
+  roleListener = listener;
+}
 
 async function refreshAccessToken(): Promise<string> {
   if (!refreshPromise) {
@@ -39,8 +57,10 @@ async function refreshAccessToken(): Promise<string> {
       if (!adminId || !refreshToken) {
         throw new Error('No refresh token available');
       }
-      const { access_token } = await authApi.refresh(adminId, refreshToken);
+      const { access_token, role } = await authApi.refresh(adminId, refreshToken);
       localStorage.setItem('admin_access_token', access_token);
+      // Keep the UI's role in step with the server (it may have changed).
+      if (role) roleListener?.(role);
       return access_token;
     })().finally(() => {
       refreshPromise = null;

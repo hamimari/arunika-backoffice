@@ -7,15 +7,14 @@ import {
   NotificationOutlined,
   LogoutOutlined,
   PictureOutlined,
-  EditOutlined,
-  NumberOutlined,
-  TagOutlined,
   AppstoreOutlined,
   GiftOutlined,
   ShoppingOutlined,
   FileTextOutlined,
   ControlOutlined,
   PercentageOutlined,
+  FontSizeOutlined,
+  TeamOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
@@ -30,15 +29,20 @@ const menuItems = [
     icon: <AppstoreOutlined />,
     label: 'Content',
     children: [
-      { key: '/content/fairy-tales', icon: <BookOutlined />, label: 'Fairy Tales' },
-      { key: '/content/ar-cards', icon: <PictureOutlined />, label: 'AR Cards' },
-      { key: '/content/tracing', icon: <EditOutlined />, label: 'Tracing Items' },
-      { key: '/content/counting', icon: <NumberOutlined />, label: 'Counting Questions' },
-      { key: '/content/badges', icon: <TagOutlined />, label: 'Badges' },
       { key: '/content/categories', icon: <AppstoreOutlined />, label: 'Categories' },
       { key: '/content/ar-card-categories', icon: <AppstoreOutlined />, label: 'AR Card Categories' },
       { key: '/content/dongeng-categories', icon: <AppstoreOutlined />, label: 'Dongeng Categories' },
       { key: '/content/banners', icon: <PictureOutlined />, label: 'Banners' },
+    ],
+  },
+  {
+    key: 'belajar',
+    icon: <BookOutlined />,
+    label: 'Konten Belajar',
+    children: [
+      { key: '/content/fairy-tales', icon: <BookOutlined />, label: 'Fairy Tales' },
+      { key: '/content/ar-cards', icon: <PictureOutlined />, label: 'AR Cards' },
+      { key: '/huruf', icon: <FontSizeOutlined />, label: 'Huruf' },
     ],
   },
   { key: '/users', icon: <UserOutlined />, label: 'Users' },
@@ -49,7 +53,13 @@ const menuItems = [
   { key: '/orders', icon: <FileTextOutlined />, label: 'Orders' },
   { key: '/feature-flags', icon: <ControlOutlined />, label: 'App Features' },
   { key: '/strike-prices', icon: <PercentageOutlined />, label: 'Harga Coret' },
+  { key: '/settings/roles', icon: <TeamOutlined />, label: 'Pengaturan & peran' },
 ];
+
+/** The menu entry to highlight: a letter editor (/huruf/:id) highlights Huruf. */
+function selectedMenuKey(pathname: string): string {
+  return pathname.startsWith('/huruf') ? '/huruf' : pathname;
+}
 
 export default function AppLayout() {
   const navigate = useNavigate();
@@ -88,8 +98,8 @@ export default function AppLayout() {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
-          defaultOpenKeys={['content']}
+          selectedKeys={[selectedMenuKey(location.pathname)]}
+          defaultOpenKeys={['content', 'belajar']}
           items={menuItems}
           onClick={handleMenuClick}
         />

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import axios from 'axios';
 import MockAdapter from 'axios-mock-adapter';
-import api from '../../api/client';
+import api, { setRoleListener } from '../../api/client';
 
 /**
  * The shared axios client carries every admin request. Two behaviours here
@@ -66,6 +66,25 @@ describe('api client — request interceptor', () => {
 });
 
 describe('api client — 401 handling', () => {
+  it('should_pass_a_refreshed_role_to_the_listener', async () => {
+    localStorage.setItem('admin_access_token', 'expired');
+    localStorage.setItem('admin_refresh_token', 'refresh-abc');
+    localStorage.setItem('admin_id', 'admin-1');
+    const roles: string[] = [];
+    setRoleListener((r) => roles.push(r));
+
+    let attempt = 0;
+    mock.onGet('/admin/huruf/letters').reply(() => {
+      attempt += 1;
+      return attempt === 1 ? [401, { error: 'token expired' }] : [200, { data: [] }];
+    });
+    bareAxios.onPost(REFRESH).reply(200, { access_token: 'fresh', role: 'editor' });
+
+    await api.get('/admin/huruf/letters');
+    expect(roles).toEqual(['editor']);
+    setRoleListener(null);
+  });
+
   it('should_refresh_once_and_retry_the_original_request', async () => {
     localStorage.setItem('admin_access_token', 'expired');
     localStorage.setItem('admin_refresh_token', 'refresh-abc');

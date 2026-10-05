@@ -1,14 +1,19 @@
 import axios from 'axios';
 import api from './client';
 
+/** Content role: editors edit drafts and upload; publishers also publish. */
+export type AdminRole = 'editor' | 'publisher';
+
 export interface LoginResponse {
   access_token: string;
   refresh_token: string;
   admin_id: string;
+  role?: AdminRole;
 }
 
 export interface RefreshResponse {
   access_token: string;
+  role?: AdminRole;
 }
 
 // Uses a bare axios call (not the shared `api` instance) so this request
